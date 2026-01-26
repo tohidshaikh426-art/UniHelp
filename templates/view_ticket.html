@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block title %}Ticket #{{ ticket.ticketid }} - UniHelp{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-6">
+    <!-- Back Button -->
+    <a href="{{ url_for('dashboard') }}" 
+       class="inline-flex items-center text-gray-600 hover:text-gray-900 transition">
+        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+        Back to Dashboard
+    </a>
+
+    <!-- Ticket Details Card -->
+    <div class="bg-white rounded-lg shadow">
+        <div class="p-6 border-b border-gray-200">
+            <div class="flex justify-between items-start">
+                <div>
+                    <div class="flex items-center space-x-3 mb-2">
+                        <span class="text-sm font-semibold text-gray-500">#{{ ticket.ticketid }}</span>
+                        <span class="status-badge status-{{ ticket.status.lower().replace(' ', '-') }}">
+                            {{ ticket.status }}
+                        </span>
+                    </div>
+                    <h1 class="text-2xl font-bold text-gray-900">{{ ticket.title }}</h1>
+                </div>
+            </div>
+        </div>
+
+        <div class="p-6 space-y-6">
+            <!-- Ticket Info Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <p class="text-sm font-medium text-gray-600 mb-1">Submitted By</p>
+                    <p class="text-gray-900">{{ ticket.user_name }} ({{ ticket.user_email }})</p>
+                    <span class="inline-block mt-1 px-2 py-1 text-xs rounded-full {% if ticket.user_role == 'staff' %}bg-blue-100 text-blue-800{% else %}bg-purple-100 text-purple-800{% endif %}">
+                        {{ ticket.user_role|title }}
+                    </span>
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-gray-600 mb-1">Category</p>
+                    <p class="text-gray-900">{{ ticket.category }}</p>
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-gray-600 mb-1">Created Date</p>
+                    <p class="text-gray-900">{{ ticket.createdat }}</p>
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-gray-600 mb-1">Assigned Technician</p>
+                    <p class="text-gray-900">{{ ticket.technician_name or 'Not assigned yet' }}</p>
+                </div>
+            </div>
+
+            <!-- Description -->
+            <div class="pt-6 border-t border-gray-200">
+                <p class="text-sm font-medium text-gray-600 mb-2">Description</p>
+                <p class="text-gray-900 whitespace-pre-wrap">{{ ticket.description }}</p>
+            </div>
+
+            <!-- Attachment -->
+            {% if ticket.filepath %}
+            <div class="pt-6 border-t border-gray-200">
+                <p class="text-sm font-medium text-gray-600 mb-2">Attachment</p>
+                <a href="/{{ ticket.filepath }}" target="_blank" 
+                   class="inline-flex items-center text-primary hover:text-blue-700">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    View Attachment
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Comments Section (Only for Staff, Technicians, and Admin) -->
+    {% if can_comment %}
+    <div class="bg-white rounded-lg shadow">
+        <div class="p-6 border-b border-gray-200">
+            <h2 class="text-xl font-semibold text-gray-900">Comments & Updates</h2>
+        </div>
+        <div class="p-6 space-y-4">
+            {% if comments %}
+                {% for comment in comments %}
+                <div class="flex space-x-4">
+                    <div class="flex-shrink-0">
+                        <div class="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center">
+                            <span class="text-gray-700 font-semibold">{{ comment.user_name }}</span>
+                        </div>
+                    </div>
+                    <div class="flex-1">
+                        <div class="bg-gray-50 rounded-lg p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <div>
+                                    <span class="font-semibold text-gray-900">{{ comment.user_name }}</span>
+                                    <span class="ml-2 px-2 py-0.5 text-xs rounded-full
+                                        {% if comment.user_role == 'admin' %}bg-red-100 text-red-800
+                                        {% elif comment.user_role == 'technician' %}bg-green-100 text-green-800
+                                        {% else %}bg-blue-100 text-blue-800{% endif %}">
+                                        {{ comment.user_role|title }}
+                                    </span>
+                                </div>
+                                <span class="text-sm text-gray-500">{{ comment.createdat }}</span>
+                            </div>
+                            <p class="text-gray-900 whitespace-pre-wrap">{{ comment.content }}</p>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p class="text-gray-500 text-center py-8">No comments yet</p>
+            {% endif %}
+
+            <!-- Add Comment Form -->
+            <div class="pt-6 border-t border-gray-200">
+                <form method="POST" action="{{ url_for('add_comment', ticket_id=ticket.ticketid) }}" class="space-y-4">
+                    <textarea name="content" rows="3" required
+                              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                              placeholder="Add a comment or update..."></textarea>
+                    <button type="submit" 
+                            class="bg-primary text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition font-medium">
+                        Add Comment
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <!-- Student View (No Comments) -->
+    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+        <div class="flex items-start">
+            <svg class="w-6 h-6 text-yellow-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div>
+                <h3 class="text-sm font-semibold text-yellow-800 mb-1">Student Note</h3>
+                <p class="text-sm text-yellow-700">
+                    As a student, you can view the status of your ticket here. For additional questions or updates, please create a new ticket or contact your professor.
+                </p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

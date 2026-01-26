@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+
+{% block title %}User Management - UniHelp{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h1 class="text-3xl font-bold text-gray-900">User Management</h1>
+        <p class="text-gray-600 mt-2">Manage user accounts and approvals</p>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <!-- Total Users -->
+        <a href="{{ url_for('admin_users', role='all') }}" 
+           class="bg-white rounded-lg shadow p-4 hover:shadow-lg transition border-l-4 border-gray-500 cursor-pointer {% if current_filter == 'all' %}ring-2 ring-primary{% endif %}">
+            <p class="text-sm font-medium text-gray-600">Total Users</p>
+            <p class="text-2xl font-bold text-gray-900 mt-2">{{ stats.total }}</p>
+        </a>
+
+        <!-- Admins -->
+        <a href="{{ url_for('admin_users', role='admin') }}" 
+           class="bg-white rounded-lg shadow p-4 hover:shadow-lg transition border-l-4 border-red-500 cursor-pointer {% if current_filter == 'admin' %}ring-2 ring-primary{% endif %}">
+            <p class="text-sm font-medium text-gray-600">👑 Admins</p>
+            <p class="text-2xl font-bold text-red-600 mt-2">{{ stats.admins }}</p>
+        </a>
+
+        <!-- Technicians -->
+        <a href="{{ url_for('admin_users', role='technician') }}" 
+           class="bg-white rounded-lg shadow p-4 hover:shadow-lg transition border-l-4 border-green-500 cursor-pointer {% if current_filter == 'technician' %}ring-2 ring-primary{% endif %}">
+            <p class="text-sm font-medium text-gray-600">🔧 Technicians</p>
+            <p class="text-2xl font-bold text-green-600 mt-2">{{ stats.technicians }}</p>
+        </a>
+
+        <!-- Staff -->
+        <a href="{{ url_for('admin_users', role='staff') }}" 
+           class="bg-white rounded-lg shadow p-4 hover:shadow-lg transition border-l-4 border-blue-500 cursor-pointer {% if current_filter == 'staff' %}ring-2 ring-primary{% endif %}">
+            <p class="text-sm font-medium text-gray-600">👔 Staff</p>
+            <p class="text-2xl font-bold text-blue-600 mt-2">{{ stats.staff }}</p>
+        </a>
+
+        <!-- Students -->
+        <a href="{{ url_for('admin_users', role='student') }}" 
+           class="bg-white rounded-lg shadow p-4 hover:shadow-lg transition border-l-4 border-purple-500 cursor-pointer {% if current_filter == 'student' %}ring-2 ring-primary{% endif %}">
+            <p class="text-sm font-medium text-gray-600">🎓 Students</p>
+            <p class="text-2xl font-bold text-purple-600 mt-2">{{ stats.students }}</p>
+        </a>
+    </div>
+
+    <!-- Active Filter Display -->
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+            <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+            </svg>
+            <span class="text-sm font-medium text-blue-800">
+                {% if current_filter == 'all' %}
+                    Showing all users
+                {% elif current_filter == 'admin' %}
+                    Filtering: Admins only
+                {% elif current_filter == 'technician' %}
+                    Filtering: Technicians only
+                {% elif current_filter == 'staff' %}
+                    Filtering: Staff only
+                {% elif current_filter == 'student' %}
+                    Filtering: Students only
+                {% endif %}
+            </span>
+        </div>
+        {% if current_filter != 'all' %}
+        <a href="{{ url_for('admin_users', role='all') }}" 
+           class="text-sm text-blue-600 hover:text-blue-800 font-medium">
+            Clear Filter
+        </a>
+        {% endif %}
+    </div>
+
+    <!-- Users Table -->
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Registered</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for user in users %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ user.userid }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ user.name }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{{ user.email }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-3 py-1 text-xs font-semibold rounded-full
+                                {% if user.role == 'admin' %}bg-red-100 text-red-800 inline-flex items-center space-x-1
+                                {% elif user.role == 'technician' %}bg-green-100 text-green-800 inline-flex items-center space-x-1
+                                {% elif user.role == 'staff' %}bg-blue-100 text-blue-800 inline-flex items-center space-x-1
+                                {% else %}bg-purple-100 text-purple-800 inline-flex items-center space-x-1{% endif %}">
+                                {% if user.role == 'admin' %}
+                                    <span>👑</span>
+                                {% elif user.role == 'technician' %}
+                                    <span>🔧</span>
+                                {% elif user.role == 'staff' %}
+                                    <span>👔</span>
+                                {% else %}
+                                    <span>🎓</span>
+                                {% endif %}
+                                <span>{{ user.role|title }}</span>
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            {% if user.isapproved %}
+                            <span class="px-3 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800 inline-flex items-center space-x-1">
+                                <span class="w-2 h-2 bg-green-500 rounded-full"></span>
+                                <span>Approved</span>
+                            </span>
+                            {% else %}
+                            <span class="px-3 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800 inline-flex items-center space-x-1">
+                                <span class="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></span>
+                                <span>Pending</span>
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{{ user.created_at[:10] }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm space-x-2">
+                            {% if not user.isapproved %}
+                            <a href="{{ url_for('approve_user', user_id=user.userid) }}" 
+                               class="text-green-600 hover:text-green-800 hover:bg-green-50 px-2 py-1 rounded transition font-medium">
+                                ✓ Approve
+                            </a>
+                            {% endif %}
+                            {% if user.userid != session.user_id %}
+                            <a href="{{ url_for('delete_user', user_id=user.userid) }}" 
+                               onclick="return confirm('Are you sure you want to delete {{ user.name }}? This action cannot be undone.')"
+                               class="text-red-600 hover:text-red-800 hover:bg-red-50 px-2 py-1 rounded transition font-medium">
+                                🗑️ Delete
+                            </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="px-6 py-8 text-center text-gray-500">
+                            No users found in this category
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Summary -->
+    <div class="bg-gray-50 rounded-lg p-4">
+        <p class="text-sm text-gray-600">
+            Showing 
+            <span class="font-semibold text-gray-900">{{ users|length }}</span>
+            user(s)
+            {% if current_filter != 'all' %}
+                in the <span class="font-semibold capitalize">{{ current_filter }}</span> category
+            {% endif %}
+        </p>
+    </div>
+</div>
+
+<style>
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+</style>
+{% endblock %}

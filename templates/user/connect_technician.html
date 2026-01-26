@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+
+{% block title %}Connect to Technician - UniHelp{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <div class="bg-white rounded-lg shadow p-8 text-center">
+        <div class="mb-6">
+            <div class="w-16 h-16 bg-primary rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+            </div>
+            <h1 class="text-2xl font-bold text-gray-900 mb-2">Connecting to Technician</h1>
+            <p class="text-gray-600">Finding an available technician for you...</p>
+        </div>
+
+        <div id="connectingStatus" class="space-y-4">
+            <div class="flex justify-center">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+            <p class="text-sm text-gray-500">Please wait while we connect you</p>
+        </div>
+
+        <div id="connectionResult" class="hidden">
+            <!-- Result will be shown here -->
+        </div>
+
+        <div class="mt-6">
+            <a href="{{ url_for('user_dashboard') }}" class="text-primary hover:text-blue-700 text-sm">
+                ← Back to Dashboard
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        // Start a chat session
+        const startResponse = await fetch('/api/chat/start', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+
+        if (!startResponse.ok) {
+            throw new Error('Failed to start session');
+        }
+
+        const startData = await startResponse.json();
+        if (!startData.success) {
+            throw new Error('Session start failed');
+        }
+
+        const sessionId = startData.session_id;
+
+        // Now request technician connection
+        const connectResponse = await fetch('/api/chat/request_technician_chat', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ session_id: sessionId })
+        });
+
+        if (!connectResponse.ok) {
+            throw new Error('Connection request failed');
+        }
+
+        const connectData = await connectResponse.json();
+
+        // Hide loading
+        document.getElementById('connectingStatus').classList.add('hidden');
+
+        const resultDiv = document.getElementById('connectionResult');
+        resultDiv.classList.remove('hidden');
+
+        if (connectData.success && connectData.type === 'live_chat') {
+            resultDiv.innerHTML = `
+                <div class="text-center">
+                    <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                    </div>
+                    <h2 class="text-xl font-semibold text-gray-900 mb-2">Connected!</h2>
+                    <p class="text-gray-600 mb-4">${connectData.message}</p>
+                    <a href="${window.location.origin}/technician/chat/${connectData.live_chat_id}"
+                       class="bg-primary text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition font-medium inline-block">
+                        Start Chat
+                    </a>
+                </div>
+            `;
+        } else {
+            resultDiv.innerHTML = `
+                <div class="text-center">
+                    <div class="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg class="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                        </svg>
+                    </div>
+                    <h2 class="text-xl font-semibold text-gray-900 mb-2">No Technicians Available</h2>
+                    <p class="text-gray-600 mb-4">${connectData.message || 'No technicians are currently online.'}</p>
+                    <div class="space-x-3">
+                        <a href="{{ url_for('create_ticket') }}"
+                           class="bg-primary text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-medium">
+                            Create Ticket Instead
+                        </a>
+                        <a href="{{ url_for('user_dashboard') }}"
+                           class="bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400 transition font-medium">
+                            Back to Dashboard
+                        </a>
+                    </div>
+                </div>
+            `;
+        }
+
+    } catch (error) {
+        console.error('Connection error:', error);
+        document.getElementById('connectingStatus').classList.add('hidden');
+
+        const resultDiv = document.getElementById('connectionResult');
+        resultDiv.classList.remove('hidden');
+        resultDiv.innerHTML = `
+            <div class="text-center">
+                <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </div>
+                <h2 class="text-xl font-semibold text-gray-900 mb-2">Connection Failed</h2>
+                <p class="text-gray-600 mb-4">Unable to connect to technician. Please try again or create a ticket.</p>
+                <div class="space-x-3">
+                    <a href="{{ url_for('create_ticket') }}"
+                       class="bg-primary text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-medium">
+                        Create Ticket
+                    </a>
+                    <button onclick="location.reload()"
+                       class="bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400 transition font-medium">
+                        Try Again
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+});
+</script>
+
+<style>
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+.animate-spin {
+    animation: spin 1s linear infinite;
+}
+</style>
+{% endblock %}

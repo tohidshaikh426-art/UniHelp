@@ -1,0 +1,374 @@
+{% extends "base.html" %}
+
+{% block title %}IT Assistant - UniHelp{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <!-- Chatbot Header -->
+    <div class="bg-gradient-to-r from-primary to-blue-600 rounded-t-lg shadow p-6 text-white">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-4">
+                <div class="w-12 h-12 bg-white rounded-full flex items-center justify-center">
+                    <span class="text-2xl">🤖</span>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold">UniHelp IT Assistant</h1>
+                    <p class="text-blue-100">AI-Powered Intelligent Support</p>
+                </div>
+            </div>
+            <div id="aiStatusBadge" class="px-3 py-1 bg-white bg-opacity-20 rounded-full text-sm font-medium">
+                Loading...
+            </div>
+        </div>
+    </div>
+
+    <!-- Info Banner -->
+    <div class="bg-blue-50 border-b border-blue-200 px-6 py-4">
+        <div class="flex space-x-3">
+            <svg class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M18 5v8a2 2 0 01-2 2h-5l-5 4v-4H4a2 2 0 01-2-2V5a2 2 0 012-2h12a2 2 0 012 2z" clip-rule="evenodd" />
+            </svg>
+            <div>
+                <p class="text-sm font-medium text-blue-900">Welcome to UniHelp IT Support!</p>
+                {% if session.role in ['staff', 'admin'] %}
+                <p class="text-sm text-blue-700 mt-1">Describe your IT issue naturally. I'll help troubleshoot or connect you directly with a technician.</p>
+                {% else %}
+                <p class="text-sm text-blue-700 mt-1">Describe your IT issue naturally. I'll help troubleshoot and can create a support ticket for you if needed.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat Messages Container -->
+    <div id="chatContainer" class="bg-gray-50 p-6 h-96 overflow-y-auto border-b border-gray-200">
+        <div id="chatMessages" class="space-y-4">
+            <!-- Initial bot message -->
+            <div class="flex items-start space-x-3">
+                <div class="w-8 h-8 bg-primary rounded-full flex items-center justify-center flex-shrink-0">
+                    <span class="text-white font-bold text-sm">🤖</span>
+                </div>
+                <div class="bg-white rounded-lg p-4 shadow-sm max-w-lg">
+                    <p class="text-gray-900"><strong>Hi there! 👋</strong></p>
+                    <p class="text-gray-700 text-sm mt-2">I'm your UniHelp IT Assistant. I'm here to help with:</p>
+                    <ul class="text-sm text-gray-700 mt-2 space-y-1 ml-4">
+                        <li>🔑 Password & Login issues</li>
+                        <li>🌐 Network & WiFi problems</li>
+                        <li>💻 Software & Application help</li>
+                        <li>🖥️ Hardware troubleshooting</li>
+                        <li>🖨️ Printer & Scanner issues</li>
+                        <li>📧 Email configuration</li>
+                        <li>👤 Account Access problems</li>
+                    </ul>
+                    <p class="text-gray-700 text-sm mt-3">Just tell me what's going wrong, and I'll guide you through the solution!</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat Input -->
+    <div class="bg-white shadow p-4">
+        <form id="chatForm" class="flex space-x-3">
+            <input type="text" id="userMessage" 
+                   class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+                   placeholder="Type your issue here... e.g., 'my printer won't print' or 'can't login to wifi'"
+                   autocomplete="off">
+            <button type="submit" 
+                    class="bg-primary text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition font-medium flex items-center space-x-2 whitespace-nowrap">
+                <span>Send</span>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
+            </button>
+        </form>
+    </div>
+
+    <!-- Escalation Panel -->
+    <div id="escalationPanel" class="hidden bg-gradient-to-r from-yellow-50 to-orange-50 border-t-2 border-yellow-400 p-6">
+        <div class="flex items-start space-x-4">
+            <div class="text-3xl">⚡</div>
+            <div class="flex-1">
+                <h3 class="text-lg font-bold text-gray-900 mb-3">Get Expert Technician Help</h3>
+                <p class="text-gray-700 mb-4">I couldn't resolve this issue fully. Let me connect you with a technician who can help hands-on, or create a support ticket.</p>
+                
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <!-- Connect with Technician Button - Only for Staff/Admin -->
+                    {% if session.role in ['staff', 'admin'] %}
+                    <button onclick="connectWithTechnician()"
+                            class="bg-primary text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition font-medium flex items-center justify-center space-x-2 flex-1">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 9.192l-3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
+                        </svg>
+                        <span>Connect with Technician</span>
+                    </button>
+                    {% endif %}
+
+                    <!-- Create Ticket Button -->
+                    <button onclick="showTicketForm()" 
+                            class="bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 transition font-medium flex items-center justify-center space-x-2 flex-1">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>Create Support Ticket</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ticket Form Panel -->
+    <div id="ticketPanel" class="hidden bg-gray-50 border-t-2 border-green-400 p-6">
+        <h3 class="text-lg font-bold text-gray-900 mb-4">📝 Create Support Ticket</h3>
+        
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Issue Category</label>
+                <select id="ticketCategory" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm">
+                    <option value="">Select a category...</option>
+                    <option value="Hardware">🖥️ Hardware</option>
+                    <option value="Software">💻 Software & Applications</option>
+                    <option value="Network">🌐 Network & WiFi</option>
+                    <option value="Printer">🖨️ Printer & Scanner</option>
+                    <option value="Email">📧 Email</option>
+                    <option value="Account Access">👤 Account Access</option>
+                    <option value="Other">❓ Other</option>
+                </select>
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Brief Description</label>
+                <textarea id="ticketDescription" rows="3"
+                          class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                          placeholder="Summarize your issue (will include our chat history)..."></textarea>
+            </div>
+            
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p class="text-sm text-blue-800">✅ Your chat history with me will be attached to the ticket</p>
+                <p class="text-sm text-blue-800">✅ A technician will be assigned within 1-2 hours</p>
+                <p class="text-sm text-blue-800">✅ You'll get email updates on progress</p>
+            </div>
+            
+            <div class="flex space-x-3">
+                <button onclick="createTicketFromChat()" 
+                        class="flex-1 bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 transition font-medium">
+                    ✅ Create Ticket
+                </button>
+                <button onclick="cancelTicketForm()" 
+                        class="flex-1 bg-gray-300 text-gray-700 px-4 py-3 rounded-lg hover:bg-gray-400 transition font-medium">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentSessionId = null;
+let messageCount = 0;
+let liveChatActive = false;
+
+window.addEventListener('DOMContentLoaded', async () => {
+    // Check AI status and start session in parallel
+    const [statusResponse, startResponse] = await Promise.all([
+        fetch('/api/chat/status'),
+        fetch('/api/chat/start', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        })
+    ]);
+    
+    // Handle status
+    const statusData = await statusResponse.json();
+    const badge = document.getElementById('aiStatusBadge');
+    
+    if (statusData.ai_enabled) {
+        badge.innerHTML = '✨ <strong>AI-Powered</strong> Mode';
+        badge.className = 'px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium';
+    } else {
+        badge.innerHTML = '🔧 Fallback Mode';
+        badge.className = 'px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium';
+    }
+    
+    // Handle session start
+    const startData = await startResponse.json();
+    if (startData.success) {
+        currentSessionId = startData.session_id;
+    }
+});
+
+// Handle form submission
+document.getElementById('chatForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const input = document.getElementById('userMessage');
+    const message = input.value.trim();
+    
+    if (!message || !currentSessionId) return;
+    
+    addMessageToChat('user', message);
+    input.value = '';
+    
+    showTypingIndicator();
+    
+    const response = await fetch('/api/chat/message', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            message: message,
+            session_id: currentSessionId
+        })
+    });
+    
+    const data = await response.json();
+    removeTypingIndicator();
+    
+    if (data.success) {
+        // Show response immediately for better UX
+        addMessageToChat('bot', data.bot_message);
+        messageCount = data.message_count;
+        
+        if (data.should_escalate) {
+            document.getElementById('escalationPanel').classList.remove('hidden');
+        }
+    }
+});
+
+function addMessageToChat(sender, message) {
+    const container = document.getElementById('chatMessages');
+    const messageDiv = document.createElement('div');
+    
+    if (sender === 'user') {
+        messageDiv.className = 'flex items-end justify-end space-x-2';
+        messageDiv.innerHTML = `
+            <div class="bg-primary text-white rounded-lg px-4 py-2 shadow-sm max-w-sm">
+                <p class="text-sm whitespace-pre-wrap">${escapeHtml(message)}</p>
+            </div>
+        `;
+    } else {
+        messageDiv.className = 'flex items-start space-x-3';
+        messageDiv.innerHTML = `
+            <div class="w-8 h-8 bg-primary rounded-full flex items-center justify-center flex-shrink-0">
+                <span class="text-white font-bold text-sm">🤖</span>
+            </div>
+            <div class="bg-white rounded-lg p-4 shadow-sm max-w-lg">
+                <p class="text-gray-900 text-sm whitespace-pre-wrap">${escapeHtml(message)}</p>
+            </div>
+        `;
+    }
+    
+    container.appendChild(messageDiv);
+    
+    const chatContainer = document.getElementById('chatContainer');
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+}
+
+function showTypingIndicator() {
+    const container = document.getElementById('chatMessages');
+    const typingDiv = document.createElement('div');
+    typingDiv.id = 'typingIndicator';
+    typingDiv.className = 'flex items-start space-x-3';
+    typingDiv.innerHTML = `
+        <div class="w-8 h-8 bg-primary rounded-full flex items-center justify-center flex-shrink-0">
+            <span class="text-white font-bold text-sm">🤖</span>
+        </div>
+        <div class="bg-white rounded-lg p-4 shadow-sm">
+            <div class="flex space-x-1">
+                <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.1s;"></div>
+                <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.2s;"></div>
+            </div>
+        </div>
+    `;
+    container.appendChild(typingDiv);
+    
+    const chatContainer = document.getElementById('chatContainer');
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+}
+
+function removeTypingIndicator() {
+    const typing = document.getElementById('typingIndicator');
+    if (typing) typing.remove();
+}
+
+async function connectWithTechnician() {
+    addMessageToChat('bot', '⏳ Checking for available technicians...');
+    showTypingIndicator();
+    
+    const response = await fetch('/api/chat/request_technician_chat', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ session_id: currentSessionId })
+    });
+    
+    const data = await response.json();
+    removeTypingIndicator();
+    
+    if (data.success) {
+        if (data.type === 'live_chat') {
+            liveChatActive = true;
+            addMessageToChat('bot', data.message);
+            document.getElementById('escalationPanel').classList.add('hidden');
+        } else {
+            addMessageToChat('bot', data.message);
+        }
+    }
+}
+
+function showTicketForm() {
+    document.getElementById('escalationPanel').classList.add('hidden');
+    document.getElementById('ticketPanel').classList.remove('hidden');
+}
+
+function cancelTicketForm() {
+    document.getElementById('ticketPanel').classList.add('hidden');
+    document.getElementById('escalationPanel').classList.remove('hidden');
+}
+
+async function createTicketFromChat() {
+    const category = document.getElementById('ticketCategory').value;
+    const description = document.getElementById('ticketDescription').value;
+    
+    if (!category) {
+        alert('Please select a category');
+        return;
+    }
+    
+    const response = await fetch('/api/chat/escalate', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            session_id: currentSessionId,
+            category: category,
+            description: description
+        })
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+        addMessageToChat('bot', `✅ Ticket created!\n\n🎫 Ticket #${data.ticket_id}\n\nA technician will be assigned shortly. You'll receive email updates on progress.\n\nThank you for using UniHelp!`);
+        document.getElementById('ticketPanel').classList.add('hidden');
+        document.getElementById('escalationPanel').classList.add('hidden');
+        
+        setTimeout(() => {
+            window.location.href = `/user/view_ticket/${data.ticket_id}`;
+        }, 2000);
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+</script>
+
+<style>
+@keyframes bounce {
+    0%, 80%, 100% { transform: translateY(0); }
+    40% { transform: translateY(-4px); }
+}
+.animate-bounce {
+    animation: bounce 1.4s infinite;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+
+{% block title %}Work Log - UniHelp{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Header -->
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-900">⏰ Work Log</h1>
+        <p class="mt-2 text-gray-600">Track your work sessions and productivity</p>
+    </div>
+
+    <!-- Monthly Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="text-center">
+                <div class="text-3xl font-bold text-blue-600">{{ monthly_stats.total_sessions or 0 }}</div>
+                <div class="text-sm text-gray-600">Total Sessions</div>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="text-center">
+                <div class="text-3xl font-bold text-green-600">{{ "%.1f"|format(monthly_stats.total_hours or 0) }}</div>
+                <div class="text-sm text-gray-600">Total Hours</div>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="text-center">
+                <div class="text-3xl font-bold text-purple-600">{{ "%.1f"|format(monthly_stats.ticket_hours or 0) }}</div>
+                <div class="text-sm text-gray-600">Ticket Hours</div>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="text-center">
+                <div class="text-3xl font-bold text-orange-600">{{ "%.1f"|format(monthly_stats.chat_hours or 0) }}</div>
+                <div class="text-sm text-gray-600">Chat Hours</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Session -->
+    <div id="activeSessionCard" class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-8 hidden">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-yellow-800">
+                        Active work session: <span id="activeWorkType"></span>
+                    </p>
+                    <p class="text-sm text-yellow-700" id="activeDescription"></p>
+                    <p class="text-xs text-yellow-600" id="activeStartTime"></p>
+                </div>
+            </div>
+            <button id="endSessionBtn" class="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 transition">
+                End Session
+            </button>
+        </div>
+    </div>
+
+    <!-- Start New Session -->
+    <div class="bg-white rounded-lg shadow mb-8">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-xl font-bold text-gray-900">▶️ Start Work Session</h2>
+        </div>
+        <div class="p-6">
+            <form id="startWorkForm" class="space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Work Type</label>
+                        <select id="workType" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                            <option value="ticket_resolution">🎫 Ticket Resolution</option>
+                            <option value="live_chat">💬 Live Chat Support</option>
+                            <option value="maintenance">🔧 System Maintenance</option>
+                            <option value="other">❓ Other</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Related Ticket (Optional)</label>
+                        <input type="number" id="ticketId" placeholder="Ticket ID"
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                    <textarea id="workDescription" rows="3"
+                              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                              placeholder="Describe what you'll be working on..."></textarea>
+                </div>
+                <button type="submit" class="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition font-medium">
+                    ▶️ Start Work Session
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Work Sessions History -->
+    <div class="bg-white rounded-lg shadow">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-xl font-bold text-gray-900">📋 Work Sessions History</h2>
+            <p class="text-sm text-gray-600 mt-1">Current month: {{ current_month }}</p>
+        </div>
+        <div class="p-6">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Work Type</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start Time</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Time</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hours</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ticket</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% for session in work_sessions %}
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                    {% if session.work_type == 'ticket_resolution' %}bg-blue-100 text-blue-800
+                                    {% elif session.work_type == 'live_chat' %}bg-green-100 text-green-800
+                                    {% elif session.work_type == 'maintenance' %}bg-purple-100 text-purple-800
+                                    {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                    {% if session.work_type == 'ticket_resolution' %}🎫 Ticket
+                                    {% elif session.work_type == 'live_chat' %}💬 Chat
+                                    {% elif session.work_type == 'maintenance' %}🔧 Maintenance
+                                    {% else %}❓ Other{% endif %}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-900 max-w-xs truncate" title="{{ session.description or 'No description' }}">
+                                {{ session.description or 'No description' }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {{ session.start_time }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {% if session.end_time %}
+                                    {{ session.end_time }}
+                                {% else %}
+                                    <span class="text-yellow-600 font-medium">Active</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {% if session.hours_worked %}
+                                    {{ "%.2f"|format(session.hours_worked) }}
+                                {% else %}
+                                    --
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {% if session.ticketid %}
+                                    #{{ session.ticketid }}
+                                {% else %}
+                                    --
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let activeWorklogId = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadActiveSession();
+});
+
+async function loadActiveSession() {
+    try {
+        const response = await fetch('/api/work/active');
+        const data = await response.json();
+
+        const card = document.getElementById('activeSessionCard');
+        if (data.active) {
+            activeWorklogId = data.worklog_id;
+            document.getElementById('activeWorkType').textContent = formatWorkType(data.work_type);
+            document.getElementById('activeDescription').textContent = data.description || 'No description';
+            document.getElementById('activeStartTime').textContent = `Started: ${new Date(data.start_time).toLocaleString()}`;
+            card.classList.remove('hidden');
+        } else {
+            card.classList.add('hidden');
+        }
+    } catch (error) {
+        console.error('Error loading active session:', error);
+    }
+}
+
+function formatWorkType(workType) {
+    const types = {
+        'ticket_resolution': '🎫 Ticket Resolution',
+        'live_chat': '💬 Live Chat',
+        'maintenance': '🔧 Maintenance',
+        'other': '❓ Other'
+    };
+    return types[workType] || workType;
+}
+
+document.getElementById('startWorkForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const workType = document.getElementById('workType').value;
+    const ticketId = document.getElementById('ticketId').value;
+    const description = document.getElementById('workDescription').value;
+
+    try {
+        const response = await fetch('/api/work/start', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                work_type: workType,
+                ticket_id: ticketId || null,
+                description: description
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert('Work session started successfully!');
+            loadActiveSession();
+            this.reset();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error starting work session:', error);
+        alert('Error starting work session');
+    }
+});
+
+document.getElementById('endSessionBtn').addEventListener('click', async function() {
+    if (!activeWorklogId) return;
+
+    try {
+        const response = await fetch(`/api/work/end/${activeWorklogId}`, {
+            method: 'POST'
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert(`Work session ended! ${data.hours_worked} hours logged.`);
+            loadActiveSession();
+            location.reload(); // Refresh to show updated history
+        } else {
+            alert('Error: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error ending work session:', error);
+        alert('Error ending work session');
+    }
+});
+</script>
+{% endblock %}

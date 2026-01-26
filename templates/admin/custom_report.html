@@ -1,0 +1,336 @@
+{% extends "base.html" %}
+
+{% block title %}Custom Report - {{ date_range }} - UniHelp{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Header -->
+    <div class="mb-8">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">📊 UniHelp IT Helpdesk - Custom Report</h1>
+                <p class="mt-2 text-lg text-gray-600">{{ date_range }}</p>
+                <p class="text-sm text-gray-500">Generated on {{ datetime.now().strftime('%B %d, %Y at %I:%M %p') }}</p>
+            </div>
+            <div class="flex space-x-3">
+                <a href="{{ url_for('admin_reports') }}" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition no-print">
+                    ← Back to Reports
+                </a>
+                <button onclick="window.print()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition print-button">
+                    🖨️ Print Report
+                </button>
+                <a href="{{ url_for('admin_reports', start_date=start_date, end_date=end_date) }}" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition no-print">
+                    🔄 Regenerate
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Executive Summary Table -->
+    <div class="mb-8">
+        <h2 class="text-xl font-bold text-gray-900 mb-4">Executive Summary</h2>
+        <table class="min-w-full border border-gray-300 excel-table">
+            <thead class="bg-gray-100">
+                <tr>
+                    <th class="border border-gray-300 px-4 py-2 text-left font-semibold">Metric</th>
+                    <th class="border border-gray-300 px-4 py-2 text-left font-semibold">Value</th>
+                    <th class="border border-gray-300 px-4 py-2 text-left font-semibold">Notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="border border-gray-300 px-4 py-2 font-medium">Total Tickets</td>
+                    <td class="border border-gray-300 px-4 py-2">{{ ticket_stats.total_tickets or 0 }}</td>
+                    <td class="border border-gray-300 px-4 py-2">All tickets created in the period</td>
+                </tr>
+                <tr>
+                    <td class="border border-gray-300 px-4 py-2 font-medium">Resolved Tickets</td>
+                    <td class="border border-gray-300 px-4 py-2">{{ ticket_stats.resolved_tickets or 0 }}</td>
+                    <td class="border border-gray-300 px-4 py-2">Tickets marked as Resolved or Closed</td>
+                </tr>
+                <tr>
+                    <td class="border border-gray-300 px-4 py-2 font-medium">Resolution Rate</td>
+                    <td class="border border-gray-300 px-4 py-2">
+                        {% if ticket_stats.total_tickets and ticket_stats.total_tickets > 0 %}
+                            {{ "%.1f"|format((ticket_stats.resolved_tickets / ticket_stats.total_tickets) * 100) }}%
+                        {% else %}
+                            0.0%
+                        {% endif %}
+                    </td>
+                    <td class="border border-gray-300 px-4 py-2">Percentage of tickets resolved</td>
+                </tr>
+                <tr>
+                    <td class="border border-gray-300 px-4 py-2 font-medium">Avg Resolution Time</td>
+                    <td class="border border-gray-300 px-4 py-2">{{ "%.1f"|format(ticket_stats.avg_resolution_hours or 0) }} hours</td>
+                    <td class="border border-gray-300 px-4 py-2">Average time to resolve tickets</td>
+                </tr>
+                <tr>
+                    <td class="border border-gray-300 px-4 py-2 font-medium">Avg Satisfaction</td>
+                    <td class="border border-gray-300 px-4 py-2">{{ "%.1f"|format(ticket_stats.avg_satisfaction or 0) }}/5.0</td>
+                    <td class="border border-gray-300 px-4 py-2">Average customer satisfaction rating</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Ticket Status Breakdown -->
+    <div class="mb-8">
+        <h2 class="text-xl font-bold text-gray-900 mb-4">Ticket Status Breakdown</h2>
+        <table class="min-w-full border border-gray-300 excel-table">
+            <thead class="bg-gray-100">
+                <tr>
+                    <th class="border border-gray-300 px-4 py-2 text-left font-semibold">Status</th>
+                    <th class="border border-gray-300 px-4 py-2 text-left font-semibold">Count</th>
+                    <th class="border border-gray-300 px-4 py-2 text-left font-semibold">Percentage</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="border border-gray-300 px-4 py-2">Open</td>
+                    <td class="border border-gray-300 px-4 py-2">{{ ticket_stats.open_tickets or 0 }}</td>
+                    <td class="border border-gray-300 px-4 py-2">
+                        {% if ticket_stats.total_tickets and ticket_stats.total_tickets > 0 %}
+                            {{ "%.1f"|format((ticket_stats.open_tickets / ticket_stats.total_tickets) * 100) }}%
+                        {% else %}
+                            0.0%
+                        {% endif %}
+                    </td>
+                </tr>
+                <tr>
+                    <td class="border border-gray-300 px-4 py-2">In Progress</td>
+                    <td class="border border-gray-300 px-4 py-2">{{ ticket_stats.in_progress_tickets or 0 }}</td>
+                    <td class="border border-gray-300 px-4 py-2">
+                        {% if ticket_stats.total_tickets and ticket_stats.total_tickets > 0 %}
+                            {{ "%.1f"|format((ticket_stats.in_progress_tickets / ticket_stats.total_tickets) * 100) }}%
+                        {% else %}
+                            0.0%
+                        {% endif %}
+                    </td>
+                </tr>
+                <tr>
+                    <td class="border border-gray-300 px-4 py-2">Resolved/Closed</td>
+                    <td class="border border-gray-300 px-4 py-2">{{ ticket_stats.resolved_tickets or 0 }}</td>
+                    <td class="border border-gray-300 px-4 py-2">
+                        {% if ticket_stats.total_tickets and ticket_stats.total_tickets > 0 %}
+                            {{ "%.1f"|format((ticket_stats.resolved_tickets / ticket_stats.total_tickets) * 100) }}%
+                        {% else %}
+                            0.0%
+                        {% endif %}
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Tickets by Category -->
+    <div class="mb-8">
+        <h2 class="text-xl font-bold text-gray-900 mb-4">Tickets by Category</h2>
+        <table class="min-w-full border border-gray-300 excel-table">
+            <thead class="bg-gray-100">
+                <tr>
+                    <th class="border border-gray-300 px-4 py-2 text-left font-semibold">Category</th>
+                    <th class="border border-gray-300 px-4 py-2 text-left font-semibold">Total Tickets</th>
+                    <th class="border border-gray-300 px-4 py-2 text-left font-semibold">Resolved</th>
+                    <th class="border border-gray-300 px-4 py-2 text-left font-semibold">Resolution Rate</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for category in category_stats %}
+                <tr>
+                    <td class="border border-gray-300 px-4 py-2">{{ category.category }}</td>
+                    <td class="border border-gray-300 px-4 py-2">{{ category.total }}</td>
+                    <td class="border border-gray-300 px-4 py-2">{{ category.resolved }}</td>
+                    <td class="border border-gray-300 px-4 py-2">
+                        {% if category.total > 0 %}
+                            {{ "%.1f"|format((category.resolved / category.total) * 100) }}%
+                        {% else %}
+                            0.0%
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Technician Performance -->
+    <div class="mb-8">
+        <h2 class="text-xl font-bold text-gray-900 mb-4">Technician Performance</h2>
+        <table class="min-w-full border border-gray-300 excel-table">
+            <thead class="bg-gray-100">
+                <tr>
+                    <th class="border border-gray-300 px-4 py-2 text-left font-semibold">Technician</th>
+                    <th class="border border-gray-300 px-4 py-2 text-left font-semibold">Tickets Assigned</th>
+                    <th class="border border-gray-300 px-4 py-2 text-left font-semibold">Tickets Resolved</th>
+                    <th class="border border-gray-300 px-4 py-2 text-left font-semibold">Resolution Rate</th>
+                    <th class="border border-gray-300 px-4 py-2 text-left font-semibold">Avg Resolution (hrs)</th>
+                    <th class="border border-gray-300 px-4 py-2 text-left font-semibold">Total Hours</th>
+                    <th class="border border-gray-300 px-4 py-2 text-left font-semibold">Avg Satisfaction</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for tech in technician_stats %}
+                <tr>
+                    <td class="border border-gray-300 px-4 py-2">{{ tech.technician_name }}</td>
+                    <td class="border border-gray-300 px-4 py-2">{{ tech.tickets_assigned }}</td>
+                    <td class="border border-gray-300 px-4 py-2">{{ tech.tickets_resolved }}</td>
+                    <td class="border border-gray-300 px-4 py-2">
+                        {% if tech.tickets_assigned > 0 %}
+                            {{ "%.1f"|format((tech.tickets_resolved / tech.tickets_assigned) * 100) }}%
+                        {% else %}
+                            0.0%
+                        {% endif %}
+                    </td>
+                    <td class="border border-gray-300 px-4 py-2">{{ "%.1f"|format(tech.avg_resolution_time or 0) }}</td>
+                    <td class="border border-gray-300 px-4 py-2">{{ "%.1f"|format(tech.total_hours_worked or 0) }}</td>
+                    <td class="border border-gray-300 px-4 py-2">{{ "%.1f"|format(tech.avg_satisfaction or 0) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Work Hours Tracking -->
+    <div class="mb-8">
+        <h2 class="text-xl font-bold text-gray-900 mb-4">Work Hours Tracking</h2>
+        <table class="min-w-full border border-gray-300 excel-table">
+            <thead class="bg-gray-100">
+                <tr>
+                    <th class="border border-gray-300 px-4 py-2 text-left font-semibold">Technician</th>
+                    <th class="border border-gray-300 px-4 py-2 text-left font-semibold">Total Hours</th>
+                    <th class="border border-gray-300 px-4 py-2 text-left font-semibold">Ticket Sessions</th>
+                    <th class="border border-gray-300 px-4 py-2 text-left font-semibold">Chat Sessions</th>
+                    <th class="border border-gray-300 px-4 py-2 text-left font-semibold">Maintenance Sessions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for work in work_hours %}
+                <tr>
+                    <td class="border border-gray-300 px-4 py-2">{{ work.technician_name }}</td>
+                    <td class="border border-gray-300 px-4 py-2">{{ "%.1f"|format(work.total_work_hours or 0) }}</td>
+                    <td class="border border-gray-300 px-4 py-2">{{ work.ticket_work_sessions }}</td>
+                    <td class="border border-gray-300 px-4 py-2">{{ work.chat_sessions }}</td>
+                    <td class="border border-gray-300 px-4 py-2">{{ work.maintenance_sessions }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Daily Trend -->
+    <div class="mb-8">
+        <h2 class="text-xl font-bold text-gray-900 mb-4">Daily Ticket Trend</h2>
+        <table class="min-w-full border border-gray-300 excel-table">
+            <thead class="bg-gray-100">
+                <tr>
+                    <th class="border border-gray-300 px-4 py-2 text-left font-semibold">Date</th>
+                    <th class="border border-gray-300 px-4 py-2 text-left font-semibold">Tickets Created</th>
+                    <th class="border border-gray-300 px-4 py-2 text-left font-semibold">Tickets Resolved</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for day in daily_trend %}
+                <tr>
+                    <td class="border border-gray-300 px-4 py-2">{{ day.date }}</td>
+                    <td class="border border-gray-300 px-4 py-2">{{ day.tickets_created }}</td>
+                    <td class="border border-gray-300 px-4 py-2">{{ day.tickets_resolved }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<style>
+.excel-table {
+    border-collapse: collapse;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+}
+
+.excel-table th {
+    background-color: #f3f4f6;
+    font-weight: bold;
+    text-align: left;
+    border: 1px solid #d1d5db;
+    padding: 8px 12px;
+}
+
+.excel-table td {
+    border: 1px solid #d1d5db;
+    padding: 8px 12px;
+    vertical-align: top;
+}
+
+.excel-table tbody tr:nth-child(even) {
+    background-color: #f9fafb;
+}
+
+.excel-table tbody tr:hover {
+    background-color: #e5e7eb;
+}
+
+@media print {
+    .print-button {
+        display: none;
+    }
+
+    .no-print {
+        display: none !important;
+    }
+
+    body {
+        font-family: 'Courier New', monospace;
+        font-size: 10px;
+        line-height: 1.2;
+        margin: 0;
+        padding: 0;
+    }
+
+    .max-w-7xl {
+        max-width: none;
+        margin: 0;
+        padding: 0;
+    }
+
+    .excel-table {
+        width: 100%;
+        margin-bottom: 20px;
+        page-break-inside: avoid;
+    }
+
+    .excel-table th,
+    .excel-table td {
+        padding: 4px 6px;
+        border: 1px solid #000;
+        font-size: 9px;
+    }
+
+    h1 {
+        font-size: 18px !important;
+        margin-bottom: 8px !important;
+        page-break-after: avoid;
+    }
+
+    h2 {
+        font-size: 14px !important;
+        margin-bottom: 8px !important;
+        margin-top: 15px !important;
+        page-break-after: avoid;
+    }
+
+    @page {
+        margin: 0.5in;
+        size: A4 landscape;
+    }
+
+    .excel-table tbody tr:nth-child(even) {
+        background-color: transparent !important;
+    }
+
+    .excel-table tbody tr:hover {
+        background-color: transparent !important;
+    }
+}
+</style>
+{% endblock %}

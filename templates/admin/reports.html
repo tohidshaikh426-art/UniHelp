@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+
+{% block title %}Reports Dashboard - UniHelp{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Header -->
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-900">📊 Admin Reports Dashboard</h1>
+        <p class="mt-2 text-gray-600">Comprehensive monthly reports and analytics for UniHelp IT Helpdesk</p>
+    </div>
+
+    <!-- Quick Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center">
+                <div class="p-2 bg-blue-100 rounded-lg">
+                    <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">Total Tickets</p>
+                    <p class="text-2xl font-bold text-gray-900" id="totalTickets">--</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center">
+                <div class="p-2 bg-green-100 rounded-lg">
+                    <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">Resolved</p>
+                    <p class="text-2xl font-bold text-gray-900" id="resolvedTickets">--</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center">
+                <div class="p-2 bg-yellow-100 rounded-lg">
+                    <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">Avg Resolution</p>
+                    <p class="text-2xl font-bold text-gray-900" id="avgResolution">--h</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center">
+                <div class="p-2 bg-purple-100 rounded-lg">
+                    <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">Active Technicians</p>
+                    <p class="text-2xl font-bold text-gray-900" id="activeTechs">--</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Date Range Reports Section -->
+    <div class="bg-white rounded-lg shadow mb-8">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-xl font-bold text-gray-900">📅 Custom Date Range Reports</h2>
+            <p class="mt-1 text-gray-600">Generate reports for any date range</p>
+        </div>
+
+        <div class="p-6">
+            <form method="GET" action="{{ url_for('custom_date_report') }}" class="space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="start_date" class="block text-sm font-medium text-gray-700">Start Date</label>
+                        <input type="date" id="start_date" name="start_date"
+                               value="{{ request.args.get('start_date', '2024-01-01') }}"
+                               class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label for="end_date" class="block text-sm font-medium text-gray-700">End Date</label>
+                        <input type="date" id="end_date" name="end_date"
+                               value="{{ request.args.get('end_date', '2026-01-25') }}"
+                               class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                </div>
+                <div class="flex space-x-3">
+                    <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition">
+                        📊 Generate Report
+                    </button>
+                    <button type="button" onclick="setLastMonth()" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition">
+                        Last Month
+                    </button>
+                    <button type="button" onclick="setLastWeek()" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition">
+                        Last Week
+                    </button>
+                    <button type="button" onclick="setThisMonth()" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition">
+                        This Month
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Monthly Reports Section -->
+    <div class="bg-white rounded-lg shadow">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-xl font-bold text-gray-900">📅 Monthly Reports</h2>
+            <p class="mt-1 text-gray-600">Select a month to view detailed analytics</p>
+        </div>
+
+        <div class="p-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {% for year in range(2024, 2027) %}
+                    {% for month in range(1, 13) %}
+                        {% if not (year == 2026 and month > 1) %}
+                        <a href="{{ url_for('monthly_report', year=year, month=month) }}"
+                           class="block p-4 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-blue-300 transition">
+                            <div class="text-center">
+                                <div class="text-lg font-semibold text-gray-900">
+                                    {{ ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][month-1] }}
+                                </div>
+                                <div class="text-sm text-gray-600">{{ year }}</div>
+                            </div>
+                        </a>
+                        {% endif %}
+                    {% endfor %}
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Report Types -->
+    <div class="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center mb-4">
+                <div class="p-2 bg-blue-100 rounded-lg">
+                    <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                </div>
+                <h3 class="ml-3 text-lg font-semibold text-gray-900">Ticket Analytics</h3>
+            </div>
+            <p class="text-gray-600 text-sm">Monthly ticket creation, resolution rates, and category breakdowns</p>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center mb-4">
+                <div class="p-2 bg-green-100 rounded-lg">
+                    <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                </div>
+                <h3 class="ml-3 text-lg font-semibold text-gray-900">Technician Performance</h3>
+            </div>
+            <p class="text-gray-600 text-sm">Individual technician metrics, resolution times, and workload analysis</p>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center mb-4">
+                <div class="p-2 bg-purple-100 rounded-lg">
+                    <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <h3 class="ml-3 text-lg font-semibold text-gray-900">Work Hours Tracking</h3>
+            </div>
+            <p class="text-gray-600 text-sm">Detailed work log analysis and productivity metrics</p>
+        </div>
+    </div>
+</div>
+
+<script>
+// Load current stats
+document.addEventListener('DOMContentLoaded', function() {
+    // This would load real-time stats via AJAX
+    // For now, showing placeholder values
+    fetchCurrentStats();
+});
+
+async function fetchCurrentStats() {
+    try {
+        // You could add an API endpoint to get current stats
+        // For now, we'll leave the placeholders
+    } catch (error) {
+        console.error('Error loading stats:', error);
+    }
+}
+
+// Date range helper functions
+function setLastMonth() {
+    const today = new Date();
+    const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+
+    document.getElementById('start_date').value = formatDate(lastMonth);
+    document.getElementById('end_date').value = formatDate(lastMonthEnd);
+}
+
+function setLastWeek() {
+    const today = new Date();
+    const lastWeekStart = new Date(today);
+    lastWeekStart.setDate(today.getDate() - 7);
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+
+    document.getElementById('start_date').value = formatDate(lastWeekStart);
+    document.getElementById('end_date').value = formatDate(yesterday);
+}
+
+function setThisMonth() {
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+
+    document.getElementById('start_date').value = formatDate(firstDay);
+    document.getElementById('end_date').value = formatDate(yesterday);
+}
+
+function formatDate(date) {
+    return date.toISOString().split('T')[0];
+}
+</script>
+{% endblock %}
