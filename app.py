@@ -184,15 +184,31 @@ def debug_login():
             'SECRET_KEY_set': bool(os.getenv('SECRET_KEY')),
         }
         
-        # Force reload supabase_client to see initialization errors
-        import importlib
-        import supabase_client
-        importlib.reload(supabase_client)
+        # Try to initialize Supabase manually right here
+        manual_init_result = None
+        try:
+            from supabase import create_client
+            url = os.getenv('SUPABASE_URL')
+            key = os.getenv('SUPABASE_KEY')
+            service_key = os.getenv('SUPABASE_SERVICE_KEY')
+            api_key = service_key if service_key else key
+            
+            manual_client = create_client(url, api_key)
+            manual_init_result = {
+                'success': True,
+                'client_created': manual_client is not None,
+                'url_used': url[:30] + '...' if url else None,
+                'key_type': 'SERVICE' if service_key else 'ANON'
+            }
+        except Exception as e:
+            manual_init_result = {
+                'success': False,
+                'error': str(e),
+                'error_type': type(e).__name__
+            }
         
-        # Check if supabase client exists AFTER reload
-        supabase = getattr(supabase_client, 'supabase', None)
-        db = getattr(supabase_client, 'db', None)
-        
+        # Check current state
+        from supabase_client import supabase, db
         supabase_status = {
             'supabase_object_exists': supabase is not None,
             'db_client_exists': db is not None,
@@ -211,6 +227,7 @@ def debug_login():
         return {
             'supabase_connected': db.client is not None if db else False,
             'supabase_status': supabase_status,
+            'manual_initialization': manual_init_result,
             'admin_exists': admin is not None,
             'environment_variables': env_check,
             'admin_data': {
