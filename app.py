@@ -169,6 +169,30 @@ def login():
     
     return render_template('login.html')
 
+# DEBUG ROUTE - Remove after fixing login issue
+@app.route('/debug-login')
+def debug_login():
+    """Debug route to check admin user in database"""
+    try:
+        admin = db.get_user_by_email('admin@unihelp.com')
+        return {
+            'supabase_connected': db.client is not None,
+            'admin_exists': admin is not None,
+            'admin_data': {
+                'email': admin.get('email') if admin else None,
+                'role': admin.get('role') if admin else None,
+                'is_approved': admin.get('isapproved') if admin else None,
+                'has_password_hash': bool(admin.get('passwordhash')) if admin else False
+            } if admin else None,
+            'error': None
+        }
+    except Exception as e:
+        return {
+            'supabase_connected': db.client is not None,
+            'admin_exists': False,
+            'error': str(e)
+        }, 500
+
 
 @app.route('/logout')
 def logout():
