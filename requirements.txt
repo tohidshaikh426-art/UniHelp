@@ -3,4 +3,4 @@ Werkzeug==2.3.7
 Flask-Mail==0.9.1
 google-generativeai==0.3.2
 python-dotenv==1.0.0
-supabase==2.3.4
+supabase>=2.8.0,<3.0.0
