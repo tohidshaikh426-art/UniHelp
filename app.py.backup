@@ -116,24 +116,19 @@ def register():
         
         password_hash = generate_password_hash(password)
         
+        conn = get_db_connection()
         try:
-            new_user = db.create_user({
-                'name': name,
-                'email': email,
-                'passwordhash': password_hash,
-                'role': role,
-                'isapproved': False
-            })
-            if new_user:
-                flash('Registration successful! Please wait for admin approval.', 'success')
-                return redirect(url_for('login'))
-            else:
-                flash('Failed to create user', 'error')
-        except Exception as e:
-            if 'UNIQUE constraint' in str(e) or 'email' in str(e).lower():
-                flash('Email already registered', 'error')
-            else:
-                flash(f'Registration failed: {str(e)}', 'error')
+            conn.execute('''
+                INSERT INTO user (name, email, passwordhash, role, isapproved)
+                VALUES (?, ?, ?, ?, 0)
+            ''', (name, email, password_hash, role))
+            conn.commit()
+            flash('Registration successful! Please wait for admin approval.', 'success')
+            return redirect(url_for('login'))
+        except sqlite3.IntegrityError:
+            flash('Email already registered', 'error')
+        finally:
+            conn.close()
     
     return render_template('register.html')
 
@@ -149,7 +144,9 @@ def login():
         email = request.form['email']
         password = request.form['password']
         
-        user = db.get_user_by_email(email)
+        conn = get_db_connection()
+        user = conn.execute('SELECT * FROM user WHERE email = ?', (email,)).fetchone()
+        conn.close()
         
         if user and check_password_hash(user['passwordhash'], password):
             if not user['isapproved']:
@@ -198,19 +195,27 @@ def dashboard():
 @login_required
 @role_required(['admin'])
 def admin_dashboard():
-    # Get statistics using Supabase
-    all_users = db.get_all_users()
-    all_tickets = db.get_all_tickets()
+    conn = get_db_connection()
     
-    total_users = len(all_users)
-    pending_approvals = len([u for u in all_users if not u['isapproved']])
-    total_tickets = len(all_tickets)
-    open_tickets = len([t for t in all_tickets if t['status'] == 'Open'])
-    in_progress = len([t for t in all_tickets if t['status'] == 'In Progress'])
-    closed_tickets = len([t for t in all_tickets if t['status'] == 'Closed'])
+    # Get statistics
+    total_users = conn.execute('SELECT COUNT(*) as count FROM user').fetchone()['count']
+    pending_approvals = conn.execute('SELECT COUNT(*) as count FROM user WHERE isapproved = 0').fetchone()['count']
+    total_tickets = conn.execute('SELECT COUNT(*) as count FROM ticket').fetchone()['count']
+    open_tickets = conn.execute('SELECT COUNT(*) as count FROM ticket WHERE status = "Open"').fetchone()['count']
+    in_progress = conn.execute('SELECT COUNT(*) as count FROM ticket WHERE status = "In Progress"').fetchone()['count']
+    closed_tickets = conn.execute('SELECT COUNT(*) as count FROM ticket WHERE status = "Closed"').fetchone()['count']
     
-    # Get recent tickets (already includes user info from Supabase query)
-    recent_tickets = all_tickets[:10]
+    # Get recent tickets
+    recent_tickets = conn.execute('''
+        SELECT t.*, u.name as user_name, u.role as user_role, tech.name as technician_name
+        FROM ticket t
+        JOIN user u ON t.userid = u.userid
+        LEFT JOIN user tech ON t.assignedto = tech.userid
+        ORDER BY t.createdat DESC
+        LIMIT 10
+    ''').fetchall()
+    
+    conn.close()
     
     stats = {
         'total_users': total_users,
@@ -228,24 +233,28 @@ def admin_dashboard():
 @role_required(['admin'])
 def admin_users():
     """View and filter all users by role"""
+    conn = get_db_connection()
+    
     # Get filter parameter
     role_filter = request.args.get('role', 'all')
     
-    # Get all users from Supabase
-    all_users = db.get_all_users()
-    
-    # Filter users based on role
+    # Build query based on filter
     if role_filter == 'all':
-        users = all_users
+        users = conn.execute('SELECT * FROM user ORDER BY created_at DESC').fetchall()
     else:
-        users = [u for u in all_users if u['role'] == role_filter]
+        users = conn.execute(
+            'SELECT * FROM user WHERE role = ? ORDER BY created_at DESC',
+            (role_filter,)
+        ).fetchall()
     
     # Get statistics
-    total_users = len(all_users)
-    admin_count = len([u for u in all_users if u['role'] == 'admin'])
-    tech_count = len([u for u in all_users if u['role'] == 'technician'])
-    staff_count = len([u for u in all_users if u['role'] == 'staff'])
-    student_count = len([u for u in all_users if u['role'] == 'student'])
+    total_users = conn.execute('SELECT COUNT(*) as count FROM user').fetchone()['count']
+    admin_count = conn.execute('SELECT COUNT(*) as count FROM user WHERE role = "admin"').fetchone()['count']
+    tech_count = conn.execute('SELECT COUNT(*) as count FROM user WHERE role = "technician"').fetchone()['count']
+    staff_count = conn.execute('SELECT COUNT(*) as count FROM user WHERE role = "staff"').fetchone()['count']
+    student_count = conn.execute('SELECT COUNT(*) as count FROM user WHERE role = "student"').fetchone()['count']
+    
+    conn.close()
     
     stats = {
         'total': total_users,
@@ -265,14 +274,19 @@ def admin_users():
 @login_required
 @role_required(['admin'])
 def approve_user(user_id):
-    # Get user details before approval
-    user = db.get_user_by_id(user_id)
+    conn = get_db_connection()
+    
+    # Get user details before approval (to access plain password if stored, but since hashed, we'll send username and note to reset)
+    user = conn.execute('SELECT * FROM user WHERE userid = ?', (user_id,)).fetchone()
     
     if not user:
+        conn.close()
         flash('User not found', 'error')
         return redirect(url_for('admin_users'))
     
-    db.update_user(user_id, {'isapproved': True})
+    conn.execute('UPDATE user SET isapproved = 1 WHERE userid = ?', (user_id,))
+    conn.commit()
+    conn.close()
     
     # NEW: Send congratulatory email with credentials (username and password)
     # Note: Since password is hashed, this sends username and a note to reset password. If you want plain password, store it temporarily (not recommended).
@@ -291,28 +305,31 @@ def delete_user(user_id):
         flash('Cannot delete your own account', 'error')
         return redirect(url_for('admin_users'))
     
-    # Delete user from Supabase
-    if db.client:
-        response = db.client.table('user').delete().eq('userid', user_id).execute()
-        if response.data:
-            flash('User deleted successfully', 'success')
-        else:
-            flash('Failed to delete user', 'error')
-    else:
-        flash('Database connection not available', 'error')
+    conn = get_db_connection()
+    conn.execute('DELETE FROM user WHERE userid = ?', (user_id,))
+    conn.commit()
+    conn.close()
     
+    flash('User deleted successfully', 'success')
     return redirect(url_for('admin_users'))
 
 @app.route('/admin/tickets')
 @login_required
 @role_required(['admin'])
 def admin_tickets():
-    # Get all tickets from Supabase (includes user info)
-    tickets = db.get_all_tickets()
+    conn = get_db_connection()
     
-    # Get all approved technicians
-    all_users = db.get_all_users()
-    technicians = [u for u in all_users if u['role'] == 'technician' and u['isapproved']]
+    tickets = conn.execute('''
+        SELECT t.*, u.name as user_name, u.role as user_role, tech.name as technician_name
+        FROM ticket t
+        JOIN user u ON t.userid = u.userid
+        LEFT JOIN user tech ON t.assignedto = tech.userid
+        ORDER BY t.createdat DESC
+    ''').fetchall()
+    
+    technicians = conn.execute('SELECT * FROM user WHERE role = "technician" AND isapproved = 1').fetchall()
+    
+    conn.close()
     
     return render_template('admin/tickets.html', tickets=tickets, technicians=technicians)
 
@@ -327,14 +344,21 @@ def reassign_ticket(ticket_id):
         flash('Please select a technician', 'error')
         return redirect(url_for('admin_tickets'))
     
-    # Check if technician exists and is approved
-    technician = db.get_user_by_id(new_technician_id)
+    conn = get_db_connection()
     
-    if not technician or technician['role'] != 'technician' or not technician['isapproved']:
+    # Check if technician exists and is approved
+    technician = conn.execute('SELECT * FROM user WHERE userid = ? AND role = "technician" AND isapproved = 1',
+                             (new_technician_id,)).fetchone()
+    
+    if not technician:
+        conn.close()
         flash('Invalid technician selected', 'error')
         return redirect(url_for('admin_tickets'))
     
-    db.update_ticket(ticket_id, {'assignedto': new_technician_id, 'updatedat': datetime.now().isoformat()})
+    conn.execute('UPDATE ticket SET assignedto = ?, updatedat = CURRENT_TIMESTAMP WHERE ticketid = ?', 
+                 (new_technician_id, ticket_id))
+    conn.commit()
+    conn.close()
     
     flash(f'Ticket reassigned to {technician["name"]}', 'success')
     return redirect(url_for('admin_tickets'))
@@ -344,25 +368,23 @@ def reassign_ticket(ticket_id):
 @role_required(['admin'])
 def auto_rebalance_tickets():
     """Rebalance unassigned tickets among available technicians"""
-    # Get all tickets and filter for unassigned
-    all_tickets = db.get_all_tickets()
-    unassigned_tickets = [t for t in all_tickets if t['assignedto'] is None and t['status'] == 'Open']
+    conn = get_db_connection()
     
-    # Get approved technicians
-    all_users = db.get_all_users()
-    technicians = [u for u in all_users if u['role'] == 'technician' and u['isapproved']]
+    # Get unassigned tickets
+    unassigned_tickets = conn.execute('''
+        SELECT ticketid, category FROM ticket 
+        WHERE assignedto IS NULL AND status = 'Open'
+        ORDER BY createdat ASC
+    ''').fetchall()
     
     reassigned_count = 0
     for ticket in unassigned_tickets:
-        if technicians:
-            # Simple round-robin assignment (you can improve this logic)
-            technician = technicians[reassigned_count % len(technicians)]
-            db.update_ticket(ticket['ticketid'], {
-                'assignedto': technician['userid'],
-                'status': 'In Progress',
-                'updatedat': datetime.now().isoformat()
-            })
+        technician = auto_assign_ticket(conn, ticket['ticketid'], ticket['category'])
+        if technician:
             reassigned_count += 1
+    
+    conn.commit()
+    conn.close()
     
     flash(f'Rebalanced {reassigned_count} tickets among available technicians', 'success')
     return redirect(url_for('admin_tickets'))
@@ -377,11 +399,11 @@ def assign_ticket(ticket_id):
         flash('Please select a technician', 'error')
         return redirect(url_for('admin_tickets'))
     
-    db.update_ticket(ticket_id, {
-        'assignedto': technician_id,
-        'status': 'In Progress',
-        'updatedat': datetime.now().isoformat()
-    })
+    conn = get_db_connection()
+    conn.execute('UPDATE ticket SET assignedto = ?, status = "In Progress", updatedat = CURRENT_TIMESTAMP WHERE ticketid = ?', 
+                 (technician_id, ticket_id))
+    conn.commit()
+    conn.close()
     
     flash('Ticket assigned successfully', 'success')
     return redirect(url_for('admin_tickets'))
@@ -392,15 +414,30 @@ def assign_ticket(ticket_id):
 @login_required
 @role_required(['technician'])
 def technician_dashboard():
+    conn = get_db_connection()
     user_id = session.get('user_id')
     
-    # Get assigned tickets from Supabase
-    assigned_tickets = db.get_tickets_by_technician(user_id)
+    # Get assigned tickets
+    assigned_tickets = conn.execute('''
+        SELECT t.*, u.name as user_name, u.email as user_email, u.role as user_role
+        FROM ticket t
+        JOIN user u ON t.userid = u.userid
+        WHERE t.assignedto = ?
+        ORDER BY 
+            CASE t.status
+                WHEN 'Open' THEN 1
+                WHEN 'In Progress' THEN 2
+                WHEN 'Closed' THEN 3
+            END,
+            t.createdat DESC
+    ''', (user_id,)).fetchall()
     
     # Get statistics
     total_assigned = len(assigned_tickets)
     in_progress = len([t for t in assigned_tickets if t['status'] == 'In Progress'])
     completed = len([t for t in assigned_tickets if t['status'] == 'Closed'])
+    
+    conn.close()
     
     stats = {
         'total_assigned': total_assigned,
@@ -419,38 +456,86 @@ def update_ticket(ticket_id):
     resolution_notes = request.form.get('resolution_notes')
     satisfaction_rating = request.form.get('satisfaction_rating')
 
+    conn = get_db_connection()
+
     # Verify ticket is assigned to this technician
-    ticket = db.get_ticket_by_id(ticket_id)
-    
-    if not ticket or ticket['assignedto'] != session.get('user_id'):
+    ticket = conn.execute('SELECT * FROM ticket WHERE ticketid = ? AND assignedto = ?',
+                         (ticket_id, session.get('user_id'))).fetchone()
+
+    if not ticket:
+        conn.close()
         flash('Ticket not found or not assigned to you', 'error')
         return redirect(url_for('technician_dashboard'))
 
-    # Update ticket using Supabase
-    update_data = {
-        'status': status,
-        'updatedat': datetime.now().isoformat()
-    }
-    
-    if status in ['Resolved', 'Closed']:
-        update_data['resolvedat'] = datetime.now().isoformat()
-        update_data['resolvedby'] = session.get('user_id')
-    
+    # Check if status is changing to resolved/closed
+    is_resolution = status in ['Resolved', 'Closed'] and ticket['status'] != status
+
+    # Update ticket status and resolution details
+    update_fields = ['status = ?', 'updatedat = CURRENT_TIMESTAMP']
+    update_values = [status]
+
+    if is_resolution:
+        update_fields.extend(['resolvedat = CURRENT_TIMESTAMP', 'resolvedby = ?'])
+        update_values.extend([session.get('user_id')])
+
     if resolution_notes:
-        update_data['resolution_notes'] = resolution_notes
-    
+        update_fields.append('resolution_notes = ?')
+        update_values.append(resolution_notes)
+
     if satisfaction_rating:
-        update_data['satisfaction_rating'] = int(satisfaction_rating)
-    
-    db.update_ticket(ticket_id, update_data)
-    
+        update_fields.append('satisfaction_rating = ?')
+        update_values.append(int(satisfaction_rating))
+
+    update_values.append(ticket_id)
+
+    conn.execute(f'''
+        UPDATE ticket SET {', '.join(update_fields)}
+        WHERE ticketid = ?
+    ''', update_values)
+
+    # Log ticket history
+    conn.execute('''
+        INSERT INTO ticket_history (ticketid, changed_by, old_status, new_status, change_reason)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (ticket_id, session.get('user_id'), ticket['status'], status, comment or 'Status update'))
+
+    # If resolving ticket, check for active work session and end it
+    if is_resolution:
+        # End any active work session for this ticket
+        active_session = conn.execute('''
+            SELECT * FROM technician_work_log
+            WHERE technicianid = ? AND ticketid = ? AND end_time IS NULL
+        ''', (session.get('user_id'), ticket_id)).fetchone()
+
+        if active_session:
+            # Calculate hours worked
+            start_time = datetime.fromisoformat(active_session['start_time'])
+            end_time = datetime.now()
+            hours_worked = (end_time - start_time).total_seconds() / 3600
+
+            # Update the work session
+            conn.execute('''
+                UPDATE technician_work_log
+                SET end_time = CURRENT_TIMESTAMP, hours_worked = ?
+                WHERE worklogid = ?
+            ''', (hours_worked, active_session['worklogid']))
+
+            # Update ticket's total time spent
+            conn.execute('''
+                UPDATE ticket
+                SET time_spent_hours = COALESCE(time_spent_hours, 0) + ?, updatedat = CURRENT_TIMESTAMP
+                WHERE ticketid = ?
+            ''', (hours_worked, ticket_id))
+
     # Add comment if provided
     if comment:
-        db.create_comment({
-            'content': comment,
-            'ticketid': ticket_id,
-            'userid': session.get('user_id')
-        })
+        conn.execute('''
+            INSERT INTO comment (content, ticketid, userid)
+            VALUES (?, ?, ?)
+        ''', (comment, ticket_id, session.get('user_id')))
+
+    conn.commit()
+    conn.close()
 
     flash('Ticket updated successfully', 'success')
     return redirect(url_for('technician_dashboard'))
@@ -461,10 +546,19 @@ def update_ticket(ticket_id):
 @login_required
 @role_required(['staff', 'student'])
 def user_dashboard():
+    conn = get_db_connection()
     user_id = session.get('user_id')
     
-    # Get user's tickets from Supabase
-    tickets = db.get_tickets_by_user(user_id)
+    # Get user's tickets
+    tickets = conn.execute('''
+        SELECT t.*, tech.name as technician_name
+        FROM ticket t
+        LEFT JOIN user tech ON t.assignedto = tech.userid
+        WHERE t.userid = ?
+        ORDER BY t.createdat DESC
+    ''', (user_id,)).fetchall()
+    
+    conn.close()
     
     return render_template('user/dashboard.html', tickets=tickets, user_role=session.get('role'))
 
@@ -552,38 +646,24 @@ def create_ticket():
                 filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 file.save(filepath)
         
-        # Create ticket using Supabase
-        new_ticket = db.create_ticket({
-            'title': title,
-            'description': description,
-            'category': category,
-            'userid': session.get('user_id'),
-            'filepath': filepath,
-            'status': 'Open'
-        })
+        conn = get_db_connection()
+        cursor = conn.execute('''
+            INSERT INTO ticket (title, description, category, userid, filepath)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (title, description, category, session.get('user_id'), filepath))
         
-        if new_ticket:
-            ticket_id = new_ticket['ticketid']
-            
-            # Auto-assign ticket to available technician
-            all_users = db.get_all_users()
-            technicians = [u for u in all_users if u['role'] == 'technician' and u['isapproved']]
-            
-            assigned_technician = None
-            if technicians:
-                # Simple assignment - assign to first available technician
-                assigned_technician = technicians[0]
-                db.update_ticket(ticket_id, {
-                    'assignedto': assigned_technician['userid'],
-                    'status': 'In Progress'
-                })
-            
-            if assigned_technician:
-                flash(f'Ticket created and assigned to {assigned_technician["name"]}', 'success')
-            else:
-                flash('Ticket created successfully. A technician will be assigned soon.', 'success')
+        ticket_id = cursor.lastrowid
+        
+        # Auto-assign ticket to available technician
+        assigned_technician = auto_assign_ticket(conn, ticket_id, category)
+        
+        conn.commit()
+        conn.close()
+        
+        if assigned_technician:
+            flash(f'Ticket created and assigned to {assigned_technician["name"]}', 'success')
         else:
-            flash('Failed to create ticket', 'error')
+            flash('Ticket created successfully. A technician will be assigned soon.', 'success')
         
         return redirect(url_for('user_dashboard'))
     
@@ -593,10 +673,19 @@ def create_ticket():
 @app.route('/user/view_ticket/<int:ticket_id>')
 @login_required
 def view_ticket(ticket_id):
-    # Get ticket details from Supabase
-    ticket = db.get_ticket_by_id(ticket_id)
+    conn = get_db_connection()
+    
+    # Get ticket details
+    ticket = conn.execute('''
+        SELECT t.*, u.name as user_name, u.email as user_email, u.role as user_role, tech.name as technician_name
+        FROM ticket t
+        JOIN user u ON t.userid = u.userid
+        LEFT JOIN user tech ON t.assignedto = tech.userid
+        WHERE t.ticketid = ?
+    ''', (ticket_id,)).fetchone()
     
     if not ticket:
+        conn.close()
         flash('Ticket not found', 'error')
         return redirect(url_for('dashboard'))
     
@@ -605,6 +694,7 @@ def view_ticket(ticket_id):
     user_id = session.get('user_id')
     
     if role not in ['admin'] and ticket['userid'] != user_id and ticket['assignedto'] != user_id:
+        conn.close()
         flash('Access denied', 'error')
         return redirect(url_for('dashboard'))
     
@@ -613,7 +703,15 @@ def view_ticket(ticket_id):
     can_comment = role in ['admin', 'technician', 'staff']
     
     if can_comment:
-        comments = db.get_comments_by_ticket(ticket_id)
+        comments = conn.execute('''
+            SELECT c.*, u.name as user_name, u.role as user_role
+            FROM comment c
+            JOIN user u ON c.userid = u.userid
+            WHERE c.ticketid = ?
+            ORDER BY c.createdat ASC
+        ''', (ticket_id,)).fetchall()
+    
+    conn.close()
     
     return render_template('view_ticket.html', 
                          ticket=ticket, 
@@ -634,10 +732,13 @@ def add_comment(ticket_id):
         flash('Comment cannot be empty', 'error')
         return redirect(url_for('view_ticket', ticket_id=ticket_id))
     
-    # Verify ticket exists
-    ticket = db.get_ticket_by_id(ticket_id)
+    conn = get_db_connection()
+    
+    # Verify user has access to this ticket
+    ticket = conn.execute('SELECT * FROM ticket WHERE ticketid = ?', (ticket_id,)).fetchone()
     
     if not ticket:
+        conn.close()
         flash('Ticket not found', 'error')
         return redirect(url_for('dashboard'))
     
@@ -646,15 +747,17 @@ def add_comment(ticket_id):
     
     # Authorization: Admin can comment on any ticket, others only on their own or assigned tickets
     if role not in ['admin'] and ticket['userid'] != user_id and ticket['assignedto'] != user_id:
+        conn.close()
         flash('Access denied', 'error')
         return redirect(url_for('dashboard'))
     
-    # Add comment using Supabase
-    db.create_comment({
-        'content': content,
-        'ticketid': ticket_id,
-        'userid': user_id
-    })
+    # Add comment
+    conn.execute('''
+        INSERT INTO comment (content, ticketid, userid)
+        VALUES (?, ?, ?)
+    ''', (content, ticket_id, user_id))
+    conn.commit()
+    conn.close()
     
     flash('Comment added successfully', 'success')
     return redirect(url_for('view_ticket', ticket_id=ticket_id))
@@ -668,18 +771,24 @@ def profile():
         current_password = request.form.get('current_password')
         new_password = request.form.get('new_password')
         
-        user = db.get_user_by_id(session.get('user_id'))
+        conn = get_db_connection()
+        user = conn.execute('SELECT * FROM user WHERE userid = ?', (session.get('user_id'),)).fetchone()
         
         if check_password_hash(user['passwordhash'], current_password):
             new_hash = generate_password_hash(new_password)
-            db.update_user(session.get('user_id'), {'passwordhash': new_hash})
+            conn.execute('UPDATE user SET passwordhash = ? WHERE userid = ?', 
+                        (new_hash, session.get('user_id')))
+            conn.commit()
             flash('Password updated successfully', 'success')
         else:
             flash('Current password is incorrect', 'error')
         
+        conn.close()
         return redirect(url_for('profile'))
     
-    user = db.get_user_by_id(session.get('user_id'))
+    conn = get_db_connection()
+    user = conn.execute('SELECT * FROM user WHERE userid = ?', (session.get('user_id'),)).fetchone()
+    conn.close()
     
     return render_template('profile.html', user=user)
 
@@ -695,27 +804,26 @@ def profile():
 def start_chat_session():
     """Start a new chat session for all users"""
 
-    # Check if there's an active session (get all and filter)
-    all_sessions = db.get_all_chat_sessions() if hasattr(db, 'get_all_chat_sessions') else []
-    active_session = None
-    
-    # Since we don't have a direct method, let's use the client directly
-    if db.client:
-        response = db.client.table('chat_session').select('*').eq('userid', session.get('user_id')).eq('status', 'active').order('created_at', desc=True).limit(1).execute()
-        active_session = response.data[0] if response.data else None
-    
+    conn = get_db_connection()
+
+    # Check if there's an active session
+    active_session = conn.execute('''
+        SELECT * FROM chat_session
+        WHERE userid = ? AND status = 'active'
+        ORDER BY created_at DESC LIMIT 1
+    ''', (session.get('user_id'),)).fetchone()
+
     if active_session:
         session_id = active_session['sessionid']
     else:
-        # Create new session
-        import uuid
-        new_session_id = str(uuid.uuid4())
-        new_session = db.create_chat_session({
-            'sessionid': new_session_id,
-            'userid': session.get('user_id'),
-            'status': 'active'
-        })
-        session_id = new_session_id if new_session else None
+        cursor = conn.execute('''
+            INSERT INTO chat_session (userid, status)
+            VALUES (?, 'active')
+        ''', (session.get('user_id'),))
+        session_id = cursor.lastrowid
+        conn.commit()
+
+    conn.close()
 
     return jsonify({
         'success': True,
@@ -734,22 +842,29 @@ def send_chat_message():
     if not user_message or not session_id:
         return jsonify({'success': False, 'error': 'Invalid data'}), 400
     
-    # Verify session belongs to user
-    chat_session = db.get_chat_session_by_id(session_id)
+    conn = get_db_connection()
     
-    if not chat_session or chat_session['userid'] != session.get('user_id') or chat_session['status'] != 'active':
+    # Verify session belongs to user
+    chat_session = conn.execute('''
+        SELECT * FROM chat_session 
+        WHERE sessionid = ? AND userid = ? AND status = 'active'
+    ''', (session_id, session.get('user_id'))).fetchone()
+    
+    if not chat_session:
+        conn.close()
         return jsonify({'success': False, 'error': 'Invalid session'}), 403
     
     # Save user message
-    db.create_chat_message({
-        'sessionid': session_id,
-        'sender': 'user',
-        'message': user_message
-    })
+    conn.execute('''
+        INSERT INTO chat_message (sessionid, sender, message)
+        VALUES (?, 'user', ?)
+    ''', (session_id, user_message))
     
     # Count messages in this session
-    all_messages = db.get_chat_messages_by_session(session_id)
-    message_count = len(all_messages)
+    message_count = conn.execute('''
+        SELECT COUNT(*) as count FROM chat_message 
+        WHERE sessionid = ?
+    ''', (session_id,)).fetchone()['count']
     
     # Generate bot response
     if AI_ENABLED:
@@ -758,18 +873,19 @@ def send_chat_message():
         bot_response, intent = generate_bot_response(user_message, message_count)
     
     # Save bot response
-    db.create_chat_message({
-        'sessionid': session_id,
-        'sender': 'bot',
-        'message': bot_response,
-        'intent': intent
-    })
+    conn.execute('''
+        INSERT INTO chat_message (sessionid, sender, message, intent)
+        VALUES (?, 'bot', ?, ?)
+    ''', (session_id, bot_response, intent))
     
     # Check if should escalate (after 4+ messages or specific intents, or immediately for staff)
     user_role = session.get('role')
     should_escalate = (message_count >= 6 or 
                       intent in ['escalate', 'hardware_failure', 'account_lockout'] or
                       user_role in ['staff', 'admin'])
+    
+    conn.commit()
+    conn.close()
     
     return jsonify({
         'success': True,
@@ -786,50 +902,71 @@ def request_technician_chat():
     data = request.get_json()
     session_id = data.get('session_id')
     
-    # Get chat session
-    chat_session = db.get_chat_session_by_id(session_id)
+    conn = get_db_connection()
     
-    if not chat_session or chat_session['userid'] != session.get('user_id'):
+    # Get chat session
+    chat_session = conn.execute('''
+        SELECT * FROM chat_session WHERE sessionid = ? AND userid = ?
+    ''', (session_id, session.get('user_id'))).fetchone()
+    
+    if not chat_session:
+        conn.close()
         return jsonify({'success': False, 'error': 'Invalid session'}), 403
     
     # Get user info
-    user = db.get_user_by_id(session.get('user_id'))
+    user = conn.execute('SELECT userid, name, role FROM user WHERE userid = ?',
+                       (session.get('user_id'),)).fetchone()
     
     # Find available technician - more lenient for staff/admin
     user_role = session.get('role')
-    time_window = 10 if user_role in ['staff', 'admin'] else 2  # minutes
+    if user_role in ['staff', 'admin']:
+        # Staff get more lenient availability (10 minutes instead of 2)
+        time_window = (datetime.now() - timedelta(minutes=10)).strftime('%Y-%m-%d %H:%M:%S')
+    else:
+        # Regular users get strict availability (2 minutes)
+        time_window = (datetime.now() - timedelta(minutes=2)).strftime('%Y-%m-%d %H:%M:%S')
     
-    available_tech = db.get_available_technician(time_window)
+    available_tech = conn.execute('''
+        SELECT u.userid, u.name, u.email
+        FROM user u
+        JOIN user_presence p ON u.userid = p.userid
+        LEFT JOIN live_chat lc ON u.userid = lc.technicianid AND lc.status = 'active'
+        WHERE u.role = 'technician'
+        AND u.isapproved = 1
+        AND p.status = 'online'
+        AND p.last_seen > ?
+        AND lc.livechatid IS NULL
+        ORDER BY p.last_seen DESC
+        LIMIT 1
+    ''', (time_window,)).fetchone()
     
     if available_tech:
-        import uuid
-        live_chat_id = str(uuid.uuid4())
-        
         # Create live chat
-        new_chat = db.create_live_chat({
-            'livechatid': live_chat_id,
-            'sessionid': session_id,
-            'technicianid': available_tech['userid'],
-            'status': 'active'
-        })
+        cursor = conn.execute('''
+            INSERT INTO live_chat (sessionid, technicianid, status)
+            VALUES (?, ?, 'active')
+        ''', (session_id, available_tech['userid']))
         
-        # Update session status
-        if db.client:
-            db.client.table('chat_session').update({'status': 'live_chat'}).eq('sessionid', session_id).execute()
+        live_chat_id = cursor.lastrowid
+        
+        # Update session
+        conn.execute('UPDATE chat_session SET status = ? WHERE sessionid = ?',
+            ('live_chat', session_id))
         
         # Add system message with user info
         system_msg = f"🎯 Connected to {available_tech['name']} (Technician)\n\n📋 User Info:\n- Name: {user['name']}\n- Role: {user['role']}\n\nYou can now chat in real-time!"
         
-        db.create_chat_message({
-            'sessionid': session_id,
-            'sender': 'bot',
-            'message': system_msg,
-            'intent': 'system'
-        })
+        conn.execute('''
+            INSERT INTO chat_message (sessionid, sender, message, intent)
+            VALUES (?, 'bot', ?, 'system')
+        ''', (session_id, system_msg))
         
         # Send notification to technician (store in notifications table if exists)
         # Or you can use email/websocket here
         notification_msg = f"New chat request from {user['name']} ({user['role']}). Click to accept."
+        
+        conn.commit()
+        conn.close()
         
         return jsonify({
             'success': True,
@@ -840,6 +977,7 @@ def request_technician_chat():
             'message': f'✅ Connected to {available_tech["name"]}! Chat starting now...'
         })
     else:
+        conn.close()
         return jsonify({
             'success': True,
             'type': 'no_availability',
