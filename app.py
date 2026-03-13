@@ -184,11 +184,26 @@ def debug_login():
             'SECRET_KEY_set': bool(os.getenv('SECRET_KEY')),
         }
         
+        # Check if supabase client exists
+        from supabase_client import supabase, db
+        supabase_status = {
+            'supabase_object_exists': supabase is not None,
+            'db_client_exists': db is not None,
+            'db_client_has_connection': db.client is not None if db else False
+        }
+        
         # Try to get admin
-        admin = db.get_user_by_email('admin@unihelp.com')
+        admin = None
+        admin_error = None
+        if db and db.client:
+            try:
+                admin = db.get_user_by_email('admin@unihelp.com')
+            except Exception as e:
+                admin_error = str(e)
         
         return {
-            'supabase_connected': db.client is not None,
+            'supabase_connected': db.client is not None if db else False,
+            'supabase_status': supabase_status,
             'admin_exists': admin is not None,
             'environment_variables': env_check,
             'admin_data': {
@@ -197,17 +212,19 @@ def debug_login():
                 'is_approved': admin.get('isapproved') if admin else None,
                 'has_password_hash': bool(admin.get('passwordhash')) if admin else False
             } if admin else None,
+            'admin_query_error': admin_error,
             'error': None
         }
     except Exception as e:
         return {
-            'supabase_connected': db.client is not None,
+            'supabase_connected': False,
             'admin_exists': False,
             'environment_variables': {
                 'SUPABASE_URL_set': bool(os.getenv('SUPABASE_URL')),
                 'SUPABASE_KEY_set': bool(os.getenv('SUPABASE_KEY')),
             },
-            'error': str(e)
+            'error': str(e),
+            'error_type': type(e).__name__
         }, 500
 
 
