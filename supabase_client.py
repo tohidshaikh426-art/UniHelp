@@ -20,6 +20,9 @@ if SUPABASE_URL and SUPABASE_KEY:
         print(f"🔧 Initializing Supabase client...")
         print(f"URL: {SUPABASE_URL[:30]}...")
         print(f"Key length: {len(api_key)} chars")
+        print(f"SUPABASE_URL present: {bool(SUPABASE_URL)}")
+        print(f"SUPABASE_KEY present: {bool(SUPABASE_KEY)}")
+        print(f"SUPABASE_SERVICE_KEY present: {bool(SUPABASE_SERVICE_KEY)}")
         supabase: Client = create_client(SUPABASE_URL, api_key)
         print("✅ Supabase Connected Successfully")
         if SUPABASE_SERVICE_KEY:
@@ -35,6 +38,7 @@ else:
     print("⚠️  Supabase credentials not found. Using fallback mode.")
     print(f"URL present: {bool(SUPABASE_URL)}")
     print(f"Key present: {bool(SUPABASE_KEY)}")
+    print(f"All env vars: URL={SUPABASE_URL is not None}, KEY={SUPABASE_KEY is not None}, SERVICE_KEY={SUPABASE_SERVICE_KEY is not None}")
     supabase = None
 
 

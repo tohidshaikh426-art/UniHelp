@@ -174,10 +174,23 @@ def login():
 def debug_login():
     """Debug route to check admin user in database"""
     try:
+        # Check environment variables
+        import os
+        env_check = {
+            'SUPABASE_URL_set': bool(os.getenv('SUPABASE_URL')),
+            'SUPABASE_KEY_set': bool(os.getenv('SUPABASE_KEY')),
+            'SUPABASE_SERVICE_KEY_set': bool(os.getenv('SUPABASE_SERVICE_KEY')),
+            'GEMINI_API_KEY_set': bool(os.getenv('GEMINI_API_KEY')),
+            'SECRET_KEY_set': bool(os.getenv('SECRET_KEY')),
+        }
+        
+        # Try to get admin
         admin = db.get_user_by_email('admin@unihelp.com')
+        
         return {
             'supabase_connected': db.client is not None,
             'admin_exists': admin is not None,
+            'environment_variables': env_check,
             'admin_data': {
                 'email': admin.get('email') if admin else None,
                 'role': admin.get('role') if admin else None,
@@ -190,6 +203,10 @@ def debug_login():
         return {
             'supabase_connected': db.client is not None,
             'admin_exists': False,
+            'environment_variables': {
+                'SUPABASE_URL_set': bool(os.getenv('SUPABASE_URL')),
+                'SUPABASE_KEY_set': bool(os.getenv('SUPABASE_KEY')),
+            },
             'error': str(e)
         }, 500
 
