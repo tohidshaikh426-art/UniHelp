@@ -180,28 +180,47 @@ def logout():
 @app.route('/debug')
 def debug():
     """Debug route to check Supabase connection"""
-    from supabase_client import db
-    from werkzeug.security import check_password_hash
     import os
+    from werkzeug.security import check_password_hash
     
     # Check raw environment variables
     supabase_url = os.getenv('SUPABASE_URL', 'NOT_SET')
     supabase_key = os.getenv('SUPABASE_KEY', 'NOT_SET')
     supabase_service_key = os.getenv('SUPABASE_SERVICE_KEY', 'NOT_SET')
     
-    admin = db.get_user_by_email('admin@unihelp.com') if db.client else None
-    password_ok = check_password_hash(admin['passwordhash'], 'admin123') if admin else False
+    # Try to create Supabase client directly
+    supabase_error = None
+    supabase_test_success = False
+    try:
+        from supabase import create_client
+        print("🔧 Attempting to create Supabase client...")
+        test_client = create_client(supabase_url, supabase_key)
+        print("✅ Direct Supabase client created!")
+        supabase_test_success = True
+        
+        # Try to query admin user
+        response = test_client.table('user').select('*').eq('email', 'admin@unihelp.com').execute()
+        admin_data = response.data[0] if response.data else None
+        print(f"Admin data: {admin_data}")
+    except Exception as e:
+        supabase_error = str(e)
+        print(f"❌ Direct Supabase test failed: {supabase_error}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        admin_data = None
+    
+    password_ok = check_password_hash(admin_data['passwordhash'], 'admin123') if admin_data else False
     
     return {
-        'admin_exists': admin is not None,
-        'email': admin['email'] if admin else 'Not found',
-        'is_approved': admin['isapproved'] if admin else False,
+        'admin_exists': admin_data is not None,
+        'email': admin_data['email'] if admin_data else 'Not found',
+        'is_approved': admin_data['isapproved'] if admin_data else False,
         'password_matches': password_ok,
-        'supabase_connected': db.client is not None,
-        'userid': admin.get('userid') if admin else None,
+        'direct_supabase_test': supabase_test_success,
+        'supabase_error': supabase_error,
         'DEBUG_env_check': {
             'SUPABASE_URL_loaded': supabase_url != 'NOT_SET',
-            'SUPABASE_URL_value': supabase_url[:30] + '...' if supabase_url != 'NOT_SET' else 'NOT_SET',
+            'SUPABASE_URL_value': supabase_url[:40] + '...' if supabase_url != 'NOT_SET' else 'NOT_SET',
             'SUPABASE_KEY_loaded': supabase_key != 'NOT_SET',
             'SUPABASE_KEY_length': len(supabase_key) if supabase_key != 'NOT_SET' else 0,
             'SUPABASE_SERVICE_KEY_loaded': supabase_service_key != 'NOT_SET',
