@@ -184,8 +184,15 @@ def debug_login():
             'SECRET_KEY_set': bool(os.getenv('SECRET_KEY')),
         }
         
-        # Check if supabase client exists
-        from supabase_client import supabase, db
+        # Force reload supabase_client to see initialization errors
+        import importlib
+        import supabase_client
+        importlib.reload(supabase_client)
+        
+        # Check if supabase client exists AFTER reload
+        supabase = getattr(supabase_client, 'supabase', None)
+        db = getattr(supabase_client, 'db', None)
+        
         supabase_status = {
             'supabase_object_exists': supabase is not None,
             'db_client_exists': db is not None,
