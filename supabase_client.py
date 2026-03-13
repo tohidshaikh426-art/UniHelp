@@ -17,15 +17,24 @@ if SUPABASE_URL and SUPABASE_KEY:
     try:
         # Use service_role key if available for admin operations, otherwise use anon key
         api_key = SUPABASE_SERVICE_KEY if SUPABASE_SERVICE_KEY else SUPABASE_KEY
+        print(f"🔧 Initializing Supabase client...")
+        print(f"URL: {SUPABASE_URL[:30]}...")
+        print(f"Key length: {len(api_key)} chars")
         supabase: Client = create_client(SUPABASE_URL, api_key)
         print("✅ Supabase Connected Successfully")
         if SUPABASE_SERVICE_KEY:
             print("🔑 Using Service Role Key (RLS bypassed)")
+        else:
+            print("🔑 Using Anon Key (RLS enabled)")
     except Exception as e:
-        print(f"❌ Supabase Connection Failed: {e}")
+        print(f"❌ Supabase Connection Failed: {str(e)}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
         supabase = None
 else:
     print("⚠️  Supabase credentials not found. Using fallback mode.")
+    print(f"URL present: {bool(SUPABASE_URL)}")
+    print(f"Key present: {bool(SUPABASE_KEY)}")
     supabase = None
 
 
