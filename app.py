@@ -58,8 +58,11 @@ app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_USERNAME', 'your-email@gmail
 # NEW: Initialize Flask-Mail
 mail = Mail(app)
 
-# Ensure upload folder exists
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+from db_init import init_database
+
+# Initialize database if it doesn't exist
+if not os.path.exists('unihelp.db'):
+    init_database()
 
 # Database helper functions
 def get_db_connection():

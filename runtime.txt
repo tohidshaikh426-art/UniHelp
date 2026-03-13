@@ -1,1 +1,1 @@
-python-3.11.6
+# runtime.txt removed — not specifying a platform-specific Python runtime
