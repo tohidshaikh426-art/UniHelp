@@ -187,8 +187,9 @@ def debug():
     # Check raw environment variables
     supabase_url = os.getenv('SUPABASE_URL', 'NOT_SET')
     supabase_key = os.getenv('SUPABASE_KEY', 'NOT_SET')
+    supabase_service_key = os.getenv('SUPABASE_SERVICE_KEY', 'NOT_SET')
     
-    admin = db.get_user_by_email('admin@unihelp.com')
+    admin = db.get_user_by_email('admin@unihelp.com') if db.client else None
     password_ok = check_password_hash(admin['passwordhash'], 'admin123') if admin else False
     
     return {
@@ -200,9 +201,11 @@ def debug():
         'userid': admin.get('userid') if admin else None,
         'DEBUG_env_check': {
             'SUPABASE_URL_loaded': supabase_url != 'NOT_SET',
-            'SUPABASE_URL_value': supabase_url[:20] + '...' if supabase_url != 'NOT_SET' else 'NOT_SET',
+            'SUPABASE_URL_value': supabase_url[:30] + '...' if supabase_url != 'NOT_SET' else 'NOT_SET',
             'SUPABASE_KEY_loaded': supabase_key != 'NOT_SET',
             'SUPABASE_KEY_length': len(supabase_key) if supabase_key != 'NOT_SET' else 0,
+            'SUPABASE_SERVICE_KEY_loaded': supabase_service_key != 'NOT_SET',
+            'SUPABASE_SERVICE_KEY_length': len(supabase_service_key) if supabase_service_key != 'NOT_SET' else 0,
         }
     }
 
