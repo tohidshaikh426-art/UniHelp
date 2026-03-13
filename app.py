@@ -176,6 +176,25 @@ def logout():
     flash('Logged out successfully', 'success')
     return redirect(url_for('login'))
 
+# ==================== DEBUG ROUTE (TEMPORARY) ====================
+@app.route('/debug')
+def debug():
+    """Debug route to check Supabase connection"""
+    from supabase_client import db
+    from werkzeug.security import check_password_hash
+    
+    admin = db.get_user_by_email('admin@unihelp.com')
+    password_ok = check_password_hash(admin['passwordhash'], 'admin123') if admin else False
+    
+    return {
+        'admin_exists': admin is not None,
+        'email': admin['email'] if admin else 'Not found',
+        'is_approved': admin['isapproved'] if admin else False,
+        'password_matches': password_ok,
+        'supabase_connected': db.client is not None,
+        'userid': admin.get('userid') if admin else None
+    }
+
 # ==================== DASHBOARD ====================
 
 @app.route('/dashboard')
