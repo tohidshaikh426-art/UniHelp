@@ -3,10 +3,9 @@
 
 from supabase import create_client, Client
 import os
-from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# NOTE: Do NOT use load_dotenv() - Vercel sets environment variables directly
+# load_dotenv() only works for local development with .env files
 
 # Supabase Configuration
 SUPABASE_URL = os.getenv('SUPABASE_URL')
