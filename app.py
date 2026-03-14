@@ -1919,17 +1919,24 @@ def technician_live_chats():
     tech_id = session.get('user_id')
     
     # Get active live chats for this technician
-    response = db.client.table('live_chat').select('''
-        *,
-        chat_session!inner(userid),
-        user!chat_session.userid(name, email, role)
-    ''').eq('technicianid', tech_id).eq('status', 'active').execute()
+    response = db.client.table('live_chat').select('*')\
+        .eq('technicianid', tech_id)\
+        .eq('status', 'active')\
+        .execute()
     
     live_chats = []
     if response.data:
         for chat in response.data:
-            # Extract user info from nested relation
-            user_info = chat.get('chat_session', {}).get('user', {})
+            # Get user info from chat_session separately
+            session_response = db.client.table('chat_session').select('userid').eq('sessionid', chat['sessionid']).execute()
+            
+            user_info = {}
+            if session_response.data and len(session_response.data) > 0:
+                user_id = session_response.data[0]['userid']
+                user_response = db.client.table('user').select('name, email, role').eq('userid', user_id).execute()
+                if user_response.data and len(user_response.data) > 0:
+                    user_info = user_response.data[0]
+            
             live_chats.append({
                 'livechatid': chat['livechatid'],
                 'sessionid': chat['sessionid'],
@@ -1937,9 +1944,9 @@ def technician_live_chats():
                 'status': chat['status'],
                 'started_at': chat['started_at'],
                 'ended_at': chat.get('ended_at'),
-                'user_name': user_info.get('name', 'Unknown'),
-                'user_email': user_info.get('email', ''),
-                'user_role': user_info.get('role', '')
+                'user_name': user_info.get('name', 'Unknown') if user_info else 'Unknown',
+                'user_email': user_info.get('email', '') if user_info else '',
+                'user_role': user_info.get('role', '') if user_info else ''
             })
     
     return render_template('technician/live_chats.html', live_chats=live_chats)
