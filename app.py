@@ -2604,15 +2604,20 @@ def get_new_chats():
     """Get new chat requests for technician - API endpoint for real-time updates"""
     tech_id = session.get('user_id')
     
+    print(f"🔍 Checking chats for technician ID: {tech_id}")
+    
     # Get active live chats for this technician
     response = db.client.table('live_chat').select('*')\
         .eq('technicianid', tech_id)\
         .eq('status', 'active')\
         .execute()
     
+    print(f"📊 Found {len(response.data) if response.data else 0} active chats")
+    
     new_chats = []
     if response.data:
         for chat in response.data:
+            print(f"💬 Chat found: {chat}")
             # Get session and user info
             session_response = db.client.table('chat_session').select('userid, created_at').eq('sessionid', chat['sessionid']).execute()
             
@@ -2643,12 +2648,19 @@ def get_new_chats():
             
             new_chats.append(chat_info)
     
-    return jsonify({
+    result = {
         'success': True,
         'new_chats': new_chats,
         'count': len(new_chats),
-        'has_new_chat': len(new_chats) > 0
-    })
+        'has_new_chat': len(new_chats) > 0,
+        'debug': {
+            'technician_id': tech_id,
+            'total_found': len(response.data) if response.data else 0
+        }
+    }
+    
+    print(f"✅ Returning: {result}")
+    return jsonify(result)
 
 
 @app.route('/technician/chat/<int:live_chat_id>', methods=['GET'])
