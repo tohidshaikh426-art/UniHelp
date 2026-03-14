@@ -1141,13 +1141,10 @@ def request_technician_chat():
     
     if available_tech:
         print(f"✅ Found available technician: {available_tech['name']} (ID: {available_tech['userid']})")
-        import uuid
-        live_chat_id = str(uuid.uuid4())
         
         print(f"🆕 Creating live chat record...")
-        # Create live chat
+        # Create live chat (Supabase will auto-generate livechatid as INTEGER)
         new_chat = db.create_live_chat({
-            'livechatid': live_chat_id,
             'sessionid': session_id,
             'technicianid': available_tech['userid'],
             'status': 'active'
@@ -1178,7 +1175,7 @@ def request_technician_chat():
             'type': 'live_chat',
             'technician_name': available_tech['name'],
             'technician_id': available_tech['userid'],
-            'live_chat_id': live_chat_id,
+            'live_chat_id': new_chat['livechatid'],  # Use auto-generated ID
             'message': f'✅ Connected to {available_tech["name"]}! Chat starting now...'
         })
     else:
