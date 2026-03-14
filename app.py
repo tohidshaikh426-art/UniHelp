@@ -63,8 +63,47 @@ def get_db_connection():
     """Return the Supabase client"""
     return db
 
+
+def update_user_presence():
+    """Update user presence to show they're online"""
+    if 'user_id' not in session:
+        return
+    
+    try:
+        user_id = session['user_id']
+        now = datetime.now().isoformat()
+        
+        # Try to update existing presence record
+        existing = db.client.table('user_presence').select('*').eq('userid', user_id).execute()
+        
+        if existing.data and len(existing.data) > 0:
+            # Update existing record
+            db.client.table('user_presence').update({
+                'status': 'online',
+                'last_seen': now
+            }).eq('userid', user_id).execute()
+        else:
+            # Insert new record
+            db.client.table('user_presence').insert({
+                'userid': user_id,
+                'status': 'online',
+                'last_seen': now
+            }).execute()
+            
+        print(f"✅ Updated presence for user {user_id}")
+    except Exception as e:
+        print(f"⚠️  Failed to update presence: {e}")
+        # Don't fail the request if presence update fails
+
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+@app.before_request
+def before_request():
+    """Update user presence before processing any request (except static files)"""
+    if request.endpoint and request.endpoint != 'static':
+        update_user_presence()
 
 # Authentication decorator
 def login_required(f):
