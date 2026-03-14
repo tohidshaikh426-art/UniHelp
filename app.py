@@ -740,89 +740,125 @@ def profile():
 @login_required
 def start_chat_session():
     """Start a new chat session for all users"""
-
-    # Check if there's an active session (get all and filter)
-    all_sessions = db.get_all_chat_sessions() if hasattr(db, 'get_all_chat_sessions') else []
-    active_session = None
-    
-    # Since we don't have a direct method, let's use the client directly
-    if db.client:
+    try:
+        # Check if Supabase is connected
+        if not db.client:
+            return jsonify({
+                'success': False,
+                'error': 'Database connection not available'
+            }), 500
+        
+        # Check for active session
         response = db.client.table('chat_session').select('*').eq('userid', session.get('user_id')).eq('status', 'active').order('created_at', desc=True).limit(1).execute()
         active_session = response.data[0] if response.data else None
-    
-    if active_session:
-        session_id = active_session['sessionid']
-    else:
-        # Create new session
-        import uuid
-        new_session_id = str(uuid.uuid4())
-        new_session = db.create_chat_session({
-            'sessionid': new_session_id,
-            'userid': session.get('user_id'),
-            'status': 'active'
+        
+        if active_session:
+            session_id = active_session['sessionid']
+            print(f"✅ Reusing existing chat session: {session_id}")
+        else:
+            # Create new session
+            import uuid
+            new_session_id = str(uuid.uuid4())
+            new_session = db.create_chat_session({
+                'sessionid': new_session_id,
+                'userid': session.get('user_id'),
+                'status': 'active'
+            })
+            session_id = new_session_id if new_session else None
+            print(f"✅ Created new chat session: {session_id} for user {session.get('user_id')}")
+        
+        return jsonify({
+            'success': True,
+            'session_id': session_id,
+            'message': 'Chat session started'
         })
-        session_id = new_session_id if new_session else None
-
-    return jsonify({
-        'success': True,
-        'session_id': session_id,
-        'message': 'Chat session started'
-    })
+    except Exception as e:
+        print(f"❌ Error starting chat session: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to start chat: {str(e)}'
+        }), 500
 
 @app.route('/api/chat/message', methods=['POST'])
 @login_required
 def send_chat_message():
     """Handle user message and generate bot response"""
-    data = request.get_json()
-    session_id = data.get('session_id')
-    user_message = data.get('message', '').strip()
-    
-    if not user_message or not session_id:
-        return jsonify({'success': False, 'error': 'Invalid data'}), 400
-    
-    # Verify session belongs to user
-    chat_session = db.get_chat_session_by_id(session_id)
-    
-    if not chat_session or chat_session['userid'] != session.get('user_id') or chat_session['status'] != 'active':
-        return jsonify({'success': False, 'error': 'Invalid session'}), 403
-    
-    # Save user message
-    db.create_chat_message({
-        'sessionid': session_id,
-        'sender': 'user',
-        'message': user_message
-    })
-    
-    # Count messages in this session
-    all_messages = db.get_chat_messages_by_session(session_id)
-    message_count = len(all_messages)
-    
-    # Generate bot response
-    if AI_ENABLED:
-        bot_response, intent = generate_ai_response(user_message, message_count, session_id)
-    else:
-        bot_response, intent = generate_bot_response(user_message, message_count)
-    
-    # Save bot response
-    db.create_chat_message({
-        'sessionid': session_id,
-        'sender': 'bot',
-        'message': bot_response,
-        'intent': intent
-    })
-    
-    # Check if should escalate (after 4+ messages or specific intents, or immediately for staff)
-    user_role = session.get('role')
-    should_escalate = (message_count >= 6 or 
-                      intent in ['escalate', 'hardware_failure', 'account_lockout'] or
-                      user_role in ['staff', 'admin'])
-    
-    return jsonify({
-        'success': True,
-        'bot_message': bot_response,
-        'message_count': message_count,
-        'should_escalate': should_escalate
-    })
+    try:
+        data = request.get_json()
+        session_id = data.get('session_id')
+        user_message = data.get('message', '').strip()
+        
+        print(f"💬 Chat message received - Session: {session_id}, User: {session.get('user_id')}")
+        
+        if not user_message or not session_id:
+            return jsonify({'success': False, 'error': 'Invalid data'}), 400
+        
+        # Verify session belongs to user
+        chat_session = db.get_chat_session_by_id(session_id)
+        
+        if not chat_session:
+            print(f"❌ Chat session not found: {session_id}")
+            return jsonify({'success': False, 'error': 'Session not found'}), 404
+        
+        if chat_session['userid'] != session.get('user_id'):
+            print(f"❌ Session user mismatch - Session owner: {chat_session['userid']}, Current user: {session.get('user_id')}")
+            return jsonify({'success': False, 'error': 'Invalid session'}), 403
+        
+        if chat_session['status'] != 'active':
+            print(f"❌ Session not active - Status: {chat_session['status']}")
+            return jsonify({'success': False, 'error': 'Session not active'}), 400
+        
+        # Save user message
+        db.create_chat_message({
+            'sessionid': session_id,
+            'sender': 'user',
+            'message': user_message
+        })
+        
+        # Count messages in this session
+        all_messages = db.get_chat_messages_by_session(session_id)
+        message_count = len(all_messages)
+        
+        print(f"📊 Message count: {message_count}, AI Enabled: {AI_ENABLED}")
+        
+        # Generate bot response
+        if AI_ENABLED:
+            bot_response, intent = generate_ai_response(user_message, message_count, session_id)
+        else:
+            bot_response, intent = generate_bot_response(user_message, message_count)
+        
+        # Save bot response
+        db.create_chat_message({
+            'sessionid': session_id,
+            'sender': 'bot',
+            'message': bot_response,
+            'intent': intent
+        })
+        
+        # Check if should escalate (after 4+ messages or specific intents, or immediately for staff)
+        user_role = session.get('role')
+        should_escalate = (message_count >= 6 or 
+                          intent in ['escalate', 'hardware_failure', 'account_lockout'] or
+                          user_role in ['staff', 'admin'])
+        
+        print(f"✅ Response sent - Escalate: {should_escalate}, Intent: {intent}")
+        
+        return jsonify({
+            'success': True,
+            'bot_message': bot_response,
+            'message_count': message_count,
+            'should_escalate': should_escalate
+        })
+    except Exception as e:
+        print(f"❌ Error sending chat message: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to send message: {str(e)}'
+        }), 500
 
 @app.route('/api/chat/request_technician_chat', methods=['POST'])
 @login_required
