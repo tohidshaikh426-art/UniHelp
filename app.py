@@ -58,12 +58,6 @@ app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_USERNAME', 'your-email@gmail
 # NEW: Initialize Flask-Mail
 mail = Mail(app)
 
-from db_init import init_database
-
-# Initialize database if it doesn't exist
-if not os.path.exists('unihelp.db'):
-    init_database()
-
 # Database helper functions
 def get_db_connection():
     """Return the Supabase client"""
