@@ -1786,33 +1786,44 @@ def get_active_work_session():
 @role_required(['technician'])
 def technician_work_log():
     """View technician's work log"""
-    conn = get_db_connection()
     tech_id = session.get('user_id')
-
+    
     # Get work sessions for current month
     current_month = datetime.now().strftime('%Y-%m')
-    start_date = f"{current_month}-01"
-
-    work_sessions = conn.execute('''
-        SELECT * FROM technician_work_log 
-        WHERE technicianid = ? AND start_time >= ?
-        ORDER BY start_time DESC
-    ''', (tech_id, start_date)).fetchall()
-
+    start_date = f"{current_month}-01T00:00:00"
+    
+    # Get work sessions
+    response = db.client.table('technician_work_log').select('*')\
+        .eq('technicianid', tech_id)\
+        .gte('start_time', start_date)\
+        .order('start_time', desc=True)\
+        .execute()
+    
+    work_sessions = response.data if response.data else []
+    
     # Calculate monthly totals
-    monthly_stats = conn.execute('''
-        SELECT 
-            COUNT(*) as total_sessions,
-            SUM(hours_worked) as total_hours,
-            SUM(CASE WHEN work_type = 'ticket_resolution' THEN hours_worked ELSE 0 END) as ticket_hours,
-            SUM(CASE WHEN work_type = 'live_chat' THEN hours_worked ELSE 0 END) as chat_hours,
-            SUM(CASE WHEN work_type = 'maintenance' THEN hours_worked ELSE 0 END) as maintenance_hours
-        FROM technician_work_log 
-        WHERE technicianid = ? AND start_time >= ? AND end_time IS NOT NULL
-    ''', (tech_id, start_date)).fetchone()
-
-    conn.close()
-
+    monthly_stats = {
+        'total_sessions': 0,
+        'total_hours': 0,
+        'ticket_hours': 0,
+        'chat_hours': 0,
+        'maintenance_hours': 0
+    }
+    
+    for session in work_sessions:
+        if session.get('end_time') and session.get('hours_worked'):
+            monthly_stats['total_sessions'] += 1
+            total_hours = session.get('hours_worked', 0)
+            monthly_stats['total_hours'] += total_hours
+            
+            work_type = session.get('work_type', '')
+            if work_type == 'ticket_resolution':
+                monthly_stats['ticket_hours'] += total_hours
+            elif work_type == 'live_chat':
+                monthly_stats['chat_hours'] += total_hours
+            elif work_type == 'maintenance':
+                monthly_stats['maintenance_hours'] += total_hours
+    
     return render_template('technician/work_log.html', 
                          work_sessions=work_sessions,
                          monthly_stats=monthly_stats,
@@ -1905,19 +1916,31 @@ def end_live_chat(live_chat_id):
 @role_required(['technician'])
 def technician_live_chats():
     """View active live chat sessions"""
-    conn = get_db_connection()
     tech_id = session.get('user_id')
     
-    live_chats = conn.execute('''
-        SELECT lc.*, cs.sessionid, u.name as user_name, u.email as user_email, u.role as user_role
-        FROM live_chat lc
-        JOIN chat_session cs ON lc.sessionid = cs.sessionid
-        JOIN user u ON cs.userid = u.userid
-        WHERE lc.technicianid = ? AND lc.status = 'active'
-        ORDER BY lc.started_at DESC
-    ''', (tech_id,)).fetchall()
+    # Get active live chats for this technician
+    response = db.client.table('live_chat').select('''
+        *,
+        chat_session!inner(userid),
+        user!chat_session.userid(name, email, role)
+    ''').eq('technicianid', tech_id).eq('status', 'active').execute()
     
-    conn.close()
+    live_chats = []
+    if response.data:
+        for chat in response.data:
+            # Extract user info from nested relation
+            user_info = chat.get('chat_session', {}).get('user', {})
+            live_chats.append({
+                'livechatid': chat['livechatid'],
+                'sessionid': chat['sessionid'],
+                'technicianid': chat['technicianid'],
+                'status': chat['status'],
+                'started_at': chat['started_at'],
+                'ended_at': chat.get('ended_at'),
+                'user_name': user_info.get('name', 'Unknown'),
+                'user_email': user_info.get('email', ''),
+                'user_role': user_info.get('role', '')
+            })
     
     return render_template('technician/live_chats.html', live_chats=live_chats)
 
