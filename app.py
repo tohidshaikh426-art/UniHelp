@@ -1360,25 +1360,43 @@ def admin_send_direct_message():
 def admin_technicians():
     """View all technicians for direct messaging"""
     
-    conn = get_db_connection()
+    # Get all technicians with online status using Supabase
+    response = db.client.table('user').select('''
+        userid, name, email,
+        user_presence(status, last_seen)
+    ''').eq('role', 'technician').eq('isapproved', True).execute()
     
-    # Get all technicians with online status
-    two_minutes_ago = (datetime.now() - timedelta(minutes=2)).strftime('%Y-%m-%d %H:%M:%S')
+    technicians = response.data if response.data else []
     
-    technicians = conn.execute('''
-        SELECT u.userid, u.name, u.email, p.status, p.last_seen,
-               COUNT(lc.livechatid) as active_chats
-        FROM user u
-        LEFT JOIN user_presence p ON u.userid = p.userid
-        LEFT JOIN live_chat lc ON u.userid = lc.technicianid AND lc.status = 'active'
-        WHERE u.role = 'technician' AND u.isapproved = 1
-        GROUP BY u.userid
-        ORDER BY p.last_seen DESC
-    ''').fetchall()
+    # Get active live chats count for each technician
+    tech_list = []
+    for tech in technicians:
+        # Count active chats
+        chats_response = db.client.table('live_chat').select('*').eq('technicianid', tech['userid']).eq('status', 'active').execute()
+        active_chats = len(chats_response.data) if chats_response.data else 0
+        
+        # Check if online (last seen within 2 minutes)
+        presence = tech.get('user_presence', {})
+        is_online = False
+        if presence and presence.get('status') == 'online' and presence.get('last_seen'):
+            try:
+                last_seen = datetime.fromisoformat(presence['last_seen'].replace('Z', '+00:00'))
+                time_diff = datetime.now() - last_seen
+                if time_diff.total_seconds() <= 120:  # 2 minutes
+                    is_online = True
+            except:
+                pass
+        
+        tech_list.append({
+            'userid': tech['userid'],
+            'name': tech['name'],
+            'email': tech['email'],
+            'status': 'online' if is_online else 'offline',
+            'last_seen': presence.get('last_seen') if presence else None,
+            'active_chats': active_chats
+        })
     
-    conn.close()
-    
-    return render_template('admin/technicians.html', technicians=technicians)
+    return render_template('admin/technicians.html', technicians=tech_list)
 
 # ==================== ADMIN REPORTING SYSTEM ====================
 
