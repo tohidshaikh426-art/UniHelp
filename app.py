@@ -2709,10 +2709,6 @@ def view_technician_chat(live_chat_id):
                          messages=messages,
                          user_name=user_name,
                          user_email=user_email)
-    
-    return render_template('technician/view_chat.html', 
-                         live_chat=live_chat, 
-                         messages=messages)
 
 @app.route('/chatbot')
 @app.route('/ai-chat')
