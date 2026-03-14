@@ -1114,28 +1114,37 @@ def send_chat_message():
 def request_technician_chat():
     """Request live chat with technician and notify them"""
     
+    print("\n🔔 REQUEST TECHNICIAN CHAT CALLED")
     data = request.get_json()
     session_id = data.get('session_id')
+    
+    print(f"📝 Request data: {data}")
+    print(f"Session ID: {session_id}")
     
     # Get chat session
     chat_session = db.get_chat_session_by_id(session_id)
     
     if not chat_session or chat_session['userid'] != session.get('user_id'):
+        print(f"❌ Invalid session - Session: {chat_session}, User: {session.get('user_id')}")
         return jsonify({'success': False, 'error': 'Invalid session'}), 403
     
     # Get user info
     user = db.get_user_by_id(session.get('user_id'))
+    print(f"👤 User: {user['name']} ({user['role']})")
     
     # Find available technician - more lenient for staff/admin
     user_role = session.get('role')
     time_window = 10 if user_role in ['staff', 'admin'] else 2  # minutes
     
+    print(f"⏰ Looking for technician (time window: {time_window} min)")
     available_tech = db.get_available_technician(time_window)
     
     if available_tech:
+        print(f"✅ Found available technician: {available_tech['name']} (ID: {available_tech['userid']})")
         import uuid
         live_chat_id = str(uuid.uuid4())
         
+        print(f"🆕 Creating live chat record...")
         # Create live chat
         new_chat = db.create_live_chat({
             'livechatid': live_chat_id,
@@ -1144,13 +1153,17 @@ def request_technician_chat():
             'status': 'active'
         })
         
+        print(f"📊 Live chat created: {new_chat}")
+        
         # Update session status
         if db.client:
+            print(f"🔄 Updating chat_session status to 'live_chat'")
             db.client.table('chat_session').update({'status': 'live_chat'}).eq('sessionid', session_id).execute()
         
         # Add system message with user info
         system_msg = f"🎯 Connected to {available_tech['name']} (Technician)\n\n📋 User Info:\n- Name: {user['name']}\n- Role: {user['role']}\n\nYou can now chat in real-time!"
         
+        print(f"💬 Adding system message...")
         db.create_chat_message({
             'sessionid': session_id,
             'sender': 'bot',
@@ -1158,9 +1171,7 @@ def request_technician_chat():
             'intent': 'system'
         })
         
-        # Send notification to technician (store in notifications table if exists)
-        # Or you can use email/websocket here
-        notification_msg = f"New chat request from {user['name']} ({user['role']}). Click to accept."
+        print(f"✅ SUCCESS - Chat assigned to {available_tech['name']}")
         
         return jsonify({
             'success': True,
@@ -1171,6 +1182,7 @@ def request_technician_chat():
             'message': f'✅ Connected to {available_tech["name"]}! Chat starting now...'
         })
     else:
+        print(f"❌ NO TECHNICIANS AVAILABLE")
         return jsonify({
             'success': True,
             'type': 'no_availability',
