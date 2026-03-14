@@ -2602,26 +2602,50 @@ def chat_status():
 @role_required(['technician'])
 def get_new_chats():
     """Get new chat requests for technician"""
-    conn = get_db_connection()
     tech_id = session.get('user_id')
     
-    # Get active live chats
-    new_chats = conn.execute('''
-        SELECT lc.livechatid, lc.sessionid, u.name, u.role, cs.created_at,
-               (SELECT message FROM chat_message WHERE sessionid = cs.sessionid 
-                ORDER BY created_at DESC LIMIT 1) as last_message
-        FROM live_chat lc
-        JOIN chat_session cs ON lc.sessionid = cs.sessionid
-        JOIN user u ON cs.userid = u.userid
-        WHERE lc.technicianid = ? AND lc.status = 'active'
-        ORDER BY lc.started_at DESC
-    ''', (tech_id,)).fetchall()
+    # Get active live chats for this technician
+    response = db.client.table('live_chat').select('*')\
+        .eq('technicianid', tech_id)\
+        .eq('status', 'active')\
+        .execute()
     
-    conn.close()
+    new_chats = []
+    if response.data:
+        for chat in response.data:
+            # Get session and user info
+            session_response = db.client.table('chat_session').select('userid, created_at').eq('sessionid', chat['sessionid']).execute()
+            
+            chat_info = {
+                'livechatid': chat['livechatid'],
+                'sessionid': chat['sessionid'],
+                'started_at': chat.get('started_at'),
+                'name': 'Unknown',
+                'role': 'Unknown',
+                'last_message': ''
+            }
+            
+            if session_response.data and len(session_response.data) > 0:
+                session_data = session_response.data[0]
+                chat_info['created_at'] = session_data.get('created_at')
+                
+                # Get user info
+                user_response = db.client.table('user').select('name, role').eq('userid', session_data['userid']).execute()
+                if user_response.data and len(user_response.data) > 0:
+                    user_data = user_response.data[0]
+                    chat_info['name'] = user_data['name']
+                    chat_info['role'] = user_data['role']
+                
+                # Get last message
+                msg_response = db.client.table('chat_message').select('message').eq('sessionid', chat['sessionid']).order('created_at', desc=True).limit(1).execute()
+                if msg_response.data and len(msg_response.data) > 0:
+                    chat_info['last_message'] = msg_response.data[0]['message']
+            
+            new_chats.append(chat_info)
     
     return jsonify({
         'success': True,
-        'new_chats': [dict(chat) for chat in new_chats],
+        'new_chats': new_chats,
         'count': len(new_chats)
     })
 
@@ -2631,29 +2655,38 @@ def get_new_chats():
 @role_required(['technician'])
 def view_technician_chat(live_chat_id):
     """View specific chat as technician"""
-    conn = get_db_connection()
     tech_id = session.get('user_id')
     
-    live_chat = conn.execute('''
-        SELECT lc.*, cs.sessionid, u.name as user_name, u.email as user_email
-        FROM live_chat lc
-        JOIN chat_session cs ON lc.sessionid = cs.sessionid
-        JOIN user u ON cs.userid = u.userid
-        WHERE lc.livechatid = ? AND lc.technicianid = ?
-    ''', (live_chat_id, tech_id)).fetchone()
+    # Get live chat details
+    response = db.client.table('live_chat').select('*').eq('livechatid', live_chat_id).eq('technicianid', tech_id).execute()
     
-    if not live_chat:
-        conn.close()
+    if not response.data or len(response.data) == 0:
         return redirect(url_for('technician_dashboard'))
     
-    # Get chat messages
-    messages = conn.execute('''
-        SELECT * FROM chat_message 
-        WHERE sessionid = ? 
-        ORDER BY created_at ASC
-    ''', (live_chat['sessionid'],)).fetchall()
+    live_chat = response.data[0]
     
-    conn.close()
+    # Get session and user info
+    session_response = db.client.table('chat_session').select('userid').eq('sessionid', live_chat['sessionid']).execute()
+    user_name = 'Unknown'
+    user_email = ''
+    
+    if session_response.data and len(session_response.data) > 0:
+        user_id = session_response.data[0]['userid']
+        user_response = db.client.table('user').select('name, email').eq('userid', user_id).execute()
+        if user_response.data and len(user_response.data) > 0:
+            user_data = user_response.data[0]
+            user_name = user_data['name']
+            user_email = user_data['email']
+    
+    # Get chat messages
+    msg_response = db.client.table('chat_message').select('*').eq('sessionid', live_chat['sessionid']).order('created_at', asc=True).execute()
+    messages = msg_response.data if msg_response.data else []
+    
+    return render_template('technician/chat_view.html', 
+                         live_chat=live_chat,
+                         messages=messages,
+                         user_name=user_name,
+                         user_email=user_email)
     
     return render_template('technician/view_chat.html', 
                          live_chat=live_chat, 
