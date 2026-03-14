@@ -170,6 +170,151 @@ def logout():
     flash('Logged out successfully', 'success')
     return redirect(url_for('login'))
 
+
+# ==================== PASSWORD RESET ROUTES ====================
+
+@app.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    """Handle forgot password requests"""
+    if request.method == 'POST':
+        email = request.form['email'].strip().lower()
+        
+        # Validate email format
+        if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email):
+            flash('Please enter a valid email address', 'error')
+            return render_template('forgot_password.html')
+        
+        # Check if user exists
+        user = db.get_user_by_email(email)
+        
+        if not user:
+            # Don't reveal if email exists or not (security best practice)
+            flash('If that email is registered, a password reset link has been sent.', 'info')
+            return render_template('forgot_password.html')
+        
+        # Generate secure token
+        import secrets
+        token = secrets.token_urlsafe(32)  # 256-bit token
+        
+        # Set expiration time (1 hour from now)
+        expires_at = datetime.now() + timedelta(hours=1)
+        
+        # Delete any expired tokens for this email first
+        db.delete_expired_tokens(email)
+        
+        # Create new token
+        token_data = {
+            'email': email,
+            'token': token,
+            'expires_at': expires_at.isoformat(),
+            'used': False
+        }
+        
+        result = db.create_password_reset_token(token_data)
+        
+        if result:
+            # Send reset email
+            try:
+                reset_link = url_for('reset_password', token=token, _external=True)
+                
+                msg = Message(
+                    subject='Password Reset Request - UniHelp',
+                    recipients=[email],
+                    html=f'''
+                    <html>
+                    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                        <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                            <h2 style="color: #2563eb;">Password Reset Request</h2>
+                            <p>Hello {user['name']},</p>
+                            <p>You requested to reset your password for your UniHelp account.</p>
+                            <p style="margin: 30px 0;">
+                                <a href="{reset_link}" 
+                                   style="display: inline-block; background-color: #2563eb; color: white; 
+                                          padding: 12px 30px; text-decoration: none; border-radius: 5px; 
+                                          font-weight: bold;">
+                                    Reset Password
+                                </a>
+                            </p>
+                            <p><strong>This link will expire in 1 hour.</strong></p>
+                            <p>If you didn't request this, please ignore this email and your password will remain unchanged.</p>
+                            <hr style="margin: 30px 0; border: none; border-top: 1px solid #ddd;">
+                            <p style="font-size: 14px; color: #666;">
+                                Best regards,<br>
+                                UniHelp IT Support Team
+                            </p>
+                        </div>
+                    </body>
+                    </html>
+                    '''
+                )
+                
+                mail.send(msg)
+                print(f"✅ Password reset email sent to {email}")
+                
+            except Exception as e:
+                print(f"❌ Failed to send reset email: {e}")
+                flash('Failed to send reset email. Please try again later.', 'error')
+                return render_template('forgot_password.html')
+        
+        flash('If that email is registered, a password reset link has been sent.', 'info')
+    
+    return render_template('forgot_password.html')
+
+
+@app.route('/reset-password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    """Handle password reset with token"""
+    # Validate token
+    reset_token = db.get_reset_token_by_token(token)
+    
+    if not reset_token:
+        flash('Invalid or expired reset token. Please request a new password reset.', 'error')
+        return redirect(url_for('forgot_password'))
+    
+    # Check if token is expired
+    expires_at = datetime.fromisoformat(reset_token['expires_at'].replace('Z', '+00:00').replace('+00:00', ''))
+    if datetime.now() > expires_at:
+        flash('Reset token has expired. Please request a new password reset.', 'error')
+        return redirect(url_for('forgot_password'))
+    
+    if request.method == 'POST':
+        password = request.form['password']
+        confirm_password = request.form['confirm_password']
+        
+        # Validate password
+        if len(password) < 8:
+            flash('Password must be at least 8 characters long', 'error')
+            return render_template('reset_password.html', token=token)
+        
+        if password != confirm_password:
+            flash('Passwords do not match', 'error')
+            return render_template('reset_password.html', token=token)
+        
+        # Get user
+        user = db.get_user_by_email(reset_token['email'])
+        
+        if not user:
+            flash('User not found', 'error')
+            return redirect(url_for('forgot_password'))
+        
+        # Update password
+        hashed_password = generate_password_hash(password)
+        
+        update_data = {'passwordhash': hashed_password}
+        updated_user = db.update_user(user['userid'], update_data)
+        
+        if updated_user:
+            # Mark token as used
+            db.mark_token_as_used(token)
+            
+            flash('Your password has been successfully reset! You can now log in with your new password.', 'success')
+            return redirect(url_for('login'))
+        else:
+            flash('Failed to update password. Please try again.', 'error')
+            return render_template('reset_password.html', token=token)
+    
+    return render_template('reset_password.html', token=token)
+
 # ==================== DEBUG ROUTE (TEMPORARY) ====================
 @app.route('/debug')
 def debug():

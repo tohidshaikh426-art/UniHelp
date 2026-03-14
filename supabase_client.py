@@ -274,6 +274,40 @@ class DatabaseClient:
                         continue
         
         return None
+    
+    # Password Reset Operations
+    def create_password_reset_token(self, token_data):
+        """Create password reset token"""
+        if not self.client:
+            return None
+        
+        response = self.client.table('password_reset_tokens').insert(token_data).execute()
+        return response.data[0] if response.data else None
+    
+    def get_reset_token_by_token(self, token):
+        """Get reset token by token string"""
+        if not self.client:
+            return None
+        
+        response = self.client.table('password_reset_tokens').select('*').eq('token', token).eq('used', False).execute()
+        return response.data[0] if response.data else None
+    
+    def mark_token_as_used(self, token):
+        """Mark reset token as used"""
+        if not self.client:
+            return None
+        
+        response = self.client.table('password_reset_tokens').update({'used': True}).eq('token', token).execute()
+        return response.data[0] if response.data else None
+    
+    def delete_expired_tokens(self, email):
+        """Delete expired tokens for an email"""
+        if not self.client:
+            return
+        
+        from datetime import datetime
+        now = datetime.now().isoformat()
+        self.client.table('password_reset_tokens').delete().eq('email', email).lt('expires_at', now).execute()
 
 
 # Create global database instance
