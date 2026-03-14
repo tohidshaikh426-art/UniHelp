@@ -3,6 +3,7 @@
 
 from supabase import create_client, Client
 import os
+from datetime import datetime
 
 # NOTE: Do NOT use load_dotenv() - Vercel sets environment variables directly
 # load_dotenv() only works for local development with .env files
