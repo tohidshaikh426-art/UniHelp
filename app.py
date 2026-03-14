@@ -1198,75 +1198,83 @@ def request_live_technician():
     if session.get('role') not in ['staff', 'admin']:
         return jsonify({'success': False, 'error': 'Not authorized'}), 403
     
-    data = request.get_json()
-    session_id = data.get('session_id')
-    
-    conn = get_db_connection()
-    
-    # Verify session
-    chat_session = conn.execute('''
-        SELECT * FROM chat_session WHERE sessionid = ? AND userid = ?
-    ''', (session_id, session.get('user_id'))).fetchone()
-    
-    if not chat_session:
-        conn.close()
-        return jsonify({'success': False, 'error': 'Invalid session'}), 403
-    
-    # Find available technician
-    two_minutes_ago = (datetime.now() - timedelta(minutes=2)).strftime('%Y-%m-%d %H:%M:%S')
-    
-    available_tech = conn.execute('''
-        SELECT u.userid, u.name
-        FROM user u
-        JOIN user_presence p ON u.userid = p.userid
-        LEFT JOIN live_chat lc ON u.userid = lc.technicianid AND lc.status = 'active'
-        WHERE u.role = 'technician'
-        AND u.isapproved = 1
-        AND p.status = 'online'
-        AND p.last_seen > ?
-        AND lc.livechatid IS NULL
-        ORDER BY p.last_seen DESC
-        LIMIT 1
-    ''', (two_minutes_ago,)).fetchone()
-    
-    if available_tech:
-        # Create live chat session
-        cursor = conn.execute('''
-            INSERT INTO live_chat (sessionid, technicianid, status)
-            VALUES (?, ?, 'active')
-        ''', (session_id, available_tech['userid']))
+    try:
+        if not db.client:
+            return jsonify({'success': False, 'error': 'Database connection not available'}), 500
         
-        live_chat_id = cursor.lastrowid
+        data = request.get_json()
+        session_id = data.get('session_id')
         
-        # Update chat session status
-        conn.execute('''
-            UPDATE chat_session SET status = 'live_chat' WHERE sessionid = ?
-        ''', (session_id,))
+        # Verify session exists
+        chat_session = db.get_chat_session_by_id(session_id)
         
-        # Add system message
-        conn.execute('''
-            INSERT INTO chat_message (sessionid, sender, message, intent)
-            VALUES (?, 'bot', ?, 'system')
-        ''', (session_id, f'🎯 Connected to {available_tech["name"]} (Technician). You can now chat in real-time!'))
+        if not chat_session or chat_session['userid'] != session.get('user_id'):
+            return jsonify({'success': False, 'error': 'Invalid session'}), 403
         
-        conn.commit()
-        conn.close()
+        # Find available technician (online and active within last 2 minutes)
+        two_minutes_ago = datetime.now() - timedelta(minutes=2)
         
-        return jsonify({
-            'success': True,
-            'type': 'live_chat',
-            'technician_name': available_tech['name'],
-            'technician_id': available_tech['userid'],
-            'live_chat_id': live_chat_id,
-            'message': f'Connected to {available_tech["name"]}! You can now chat directly.'
-        })
-    else:
-        conn.close()
-        return jsonify({
-            'success': True,
-            'type': 'no_availability',
-            'message': 'No technicians are currently online. Would you like to create a support ticket instead?'
-        })
+        # Get all technicians first
+        response = db.client.table('user').select('*').eq('role', 'technician').eq('isapproved', True).execute()
+        technicians = response.data
+        
+        available_tech = None
+        for tech in technicians:
+            # Check presence
+            presence = db.client.table('user_presence').select('*').eq('userid', tech['userid']).eq('status', 'online').execute()
+            if presence.data:
+                last_seen = presence.data[0].get('last_seen')
+                if last_seen:
+                    try:
+                        last_seen_dt = datetime.fromisoformat(last_seen.replace('Z', '+00:00'))
+                        if last_seen_dt > two_minutes_ago:
+                            # Check if not in active chat
+                            active_chats = db.client.table('live_chat').select('*').eq('technicianid', tech['userid']).eq('status', 'active').execute()
+                            if not active_chats.data:
+                                available_tech = tech
+                                break
+                    except:
+                        continue
+        
+        if available_tech:
+            # Create live chat session
+            new_chat = db.create_live_chat({
+                'sessionid': session_id,
+                'technicianid': available_tech['userid'],
+                'status': 'active'
+            })
+            
+            # Update chat session status
+            db.client.table('chat_session').update({'status': 'live_chat'}).eq('sessionid', session_id).execute()
+            
+            # Add system message
+            db.create_chat_message({
+                'sessionid': session_id,
+                'sender': 'bot',
+                'message': f'🎯 Connected to {available_tech["name"]} (Technician). You can now chat in real-time!',
+                'intent': 'system'
+            })
+            
+            return jsonify({
+                'success': True,
+                'type': 'live_chat',
+                'technician_name': available_tech['name'],
+                'technician_id': available_tech['userid'],
+                'live_chat_id': new_chat['livechatid'],
+                'message': f'Connected to {available_tech["name"]}! You can now chat directly.'
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'type': 'no_availability',
+                'message': 'No technicians are currently online. Would you like to create a support ticket instead?'
+            })
+    
+    except Exception as e:
+        print(f"❌ Error requesting technician: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        return jsonify({'success': False, 'error': f'Failed to request technician: {str(e)}'}), 500
 
 @app.route('/api/chat/escalate', methods=['POST'])
 @login_required
@@ -1891,34 +1899,45 @@ def get_online_technicians():
 @login_required
 def end_live_chat(live_chat_id):
     """End live chat session"""
-    conn = get_db_connection()
-    
-    conn.execute('''
-        UPDATE live_chat 
-        SET status = 'ended', ended_at = CURRENT_TIMESTAMP 
-        WHERE livechatid = ?
-    ''', (live_chat_id,))
-    
-    live_chat = conn.execute('''
-        SELECT sessionid FROM live_chat WHERE livechatid = ?
-    ''', (live_chat_id,)).fetchone()
-    
-    if live_chat:
-        conn.execute('''
-            UPDATE chat_session 
-            SET status = 'resolved', resolved_at = CURRENT_TIMESTAMP 
-            WHERE sessionid = ?
-        ''', (live_chat['sessionid'],))
+    try:
+        if not db.client:
+            return jsonify({'success': False, 'error': 'Database connection not available'}), 500
         
-        conn.execute('''
-            INSERT INTO chat_message (sessionid, sender, message, intent)
-            VALUES (?, 'bot', ?, 'system')
-        ''', (live_chat['sessionid'], '✅ Chat session ended. Thank you for using UniHelp!'))
+        # Get live chat details
+        response = db.client.table('live_chat').select('*').eq('livechatid', live_chat_id).execute()
+        
+        if not response.data or len(response.data) == 0:
+            return jsonify({'success': False, 'error': 'Live chat not found'}), 404
+        
+        live_chat = response.data[0]
+        
+        # Update live_chat status to ended
+        db.client.table('live_chat').update({
+            'status': 'ended',
+            'ended_at': datetime.now().isoformat()
+        }).eq('livechatid', live_chat_id).execute()
+        
+        # Update chat_session status to resolved
+        db.client.table('chat_session').update({
+            'status': 'resolved',
+            'resolved_at': datetime.now().isoformat()
+        }).eq('sessionid', live_chat['sessionid']).execute()
+        
+        # Insert system message
+        db.client.table('chat_message').insert({
+            'sessionid': live_chat['sessionid'],
+            'sender': 'bot',
+            'message': '✅ Chat session ended. Thank you for using UniHelp!',
+            'intent': 'system'
+        }).execute()
+        
+        return jsonify({'success': True, 'message': 'Live chat ended'})
     
-    conn.commit()
-    conn.close()
-    
-    return jsonify({'success': True, 'message': 'Live chat ended'})
+    except Exception as e:
+        print(f"❌ Error ending live chat: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        return jsonify({'success': False, 'error': f'Failed to end live chat: {str(e)}'}), 500
 
 @app.route('/technician/live_chats')
 @login_required
@@ -1965,33 +1984,43 @@ def technician_live_chats():
 @role_required(['technician'])
 def technician_send_message():
     """Technician sends message in live chat"""
-    data = request.get_json()
-    session_id = data.get('session_id')
-    message = data.get('message', '').strip()
+    try:
+        if not db.client:
+            return jsonify({'success': False, 'error': 'Database connection not available'}), 500
+        
+        data = request.get_json()
+        session_id = data.get('session_id')
+        message = data.get('message', '').strip()
+        
+        if not message:
+            return jsonify({'success': False, 'error': 'Empty message'}), 400
+        
+        tech_id = session.get('user_id')
+        
+        # Verify technician is assigned to this live chat
+        response = db.client.table('live_chat').select('*')\
+            .eq('sessionid', session_id)\
+            .eq('technicianid', tech_id)\
+            .eq('status', 'active')\
+            .execute()
+        
+        if not response.data or len(response.data) == 0:
+            return jsonify({'success': False, 'error': 'Not authorized or chat not active'}), 403
+        
+        # Insert message
+        db.client.table('chat_message').insert({
+            'sessionid': session_id,
+            'sender': 'technician',
+            'message': message
+        }).execute()
+        
+        return jsonify({'success': True, 'message': 'Message sent'})
     
-    if not message:
-        return jsonify({'success': False, 'error': 'Empty message'}), 400
-    
-    conn = get_db_connection()
-    
-    live_chat = conn.execute('''
-        SELECT * FROM live_chat 
-        WHERE sessionid = ? AND technicianid = ? AND status = 'active'
-    ''', (session_id, session.get('user_id'))).fetchone()
-    
-    if not live_chat:
-        conn.close()
-        return jsonify({'success': False, 'error': 'Not authorized'}), 403
-    
-    conn.execute('''
-        INSERT INTO chat_message (sessionid, sender, message)
-        VALUES (?, 'technician', ?)
-    ''', (session_id, message))
-    
-    conn.commit()
-    conn.close()
-    
-    return jsonify({'success': True, 'message': 'Message sent'})
+    except Exception as e:
+        print(f"❌ Error sending technician message: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        return jsonify({'success': False, 'error': f'Failed to send message: {str(e)}'}), 500
 
 def generate_bot_response(user_message, message_count):
     """
