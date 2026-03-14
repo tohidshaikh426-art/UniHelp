@@ -748,11 +748,46 @@ def start_chat_session():
                 'error': 'Database connection not available'
             }), 500
         
+        # Get user_id from session and validate
+        session_user_id = session.get('user_id')
+        if not session_user_id:
+            print(f"⚠️ No user_id in session - Session data: {dict(session)}")
+            return jsonify({
+                'success': False,
+                'error': 'User ID not found in session'
+            }), 500
+        
         # Ensure user_id is an integer
-        user_id = int(session.get('user_id', 0))
+        try:
+            user_id = int(session_user_id)
+        except (ValueError, TypeError) as e:
+            print(f"❌ Invalid user_id format: {session_user_id}, type: {type(session_user_id)}, error: {e}")
+            return jsonify({
+                'success': False,
+                'error': f'Invalid user ID format: {session_user_id}'
+            }), 500
+        
+        print(f"🔍 Starting chat session for user_id: {user_id}")
+        
+        # First, verify the user exists
+        user_check = db.client.table('user').select('userid, name, role').eq('userid', user_id).execute()
+        if not user_check.data:
+            print(f"⚠️ User {user_id} not found in database")
+            return jsonify({
+                'success': False,
+                'error': 'User not found'
+            }), 404
+        
+        print(f"✅ User verified: {user_check.data[0]['name']} ({user_check.data[0]['role']})")
         
         # Check for active session
+        print(f"🔍 Checking for existing active chat sessions...")
         response = db.client.table('chat_session').select('*').eq('userid', user_id).eq('status', 'active').order('created_at', desc=True).limit(1).execute()
+        
+        print(f"📊 Query result: {len(response.data) if response.data else 0} sessions found")
+        if response.data:
+            print(f"📊 Raw response: {response.data[0]}")
+        
         active_session = response.data[0] if response.data else None
         
         if active_session:
@@ -762,13 +797,23 @@ def start_chat_session():
             # Create new session
             import uuid
             new_session_id = str(uuid.uuid4())
+            print(f"🆕 Creating new session with ID: {new_session_id}")
+            
             new_session = db.create_chat_session({
                 'sessionid': new_session_id,
                 'userid': user_id,
                 'status': 'active'
             })
-            session_id = new_session_id if new_session else None
-            print(f"✅ Created new chat session: {session_id} for user {user_id}")
+            
+            if new_session:
+                session_id = new_session_id
+                print(f"✅ Created new chat session: {session_id} for user {user_id}")
+            else:
+                print(f"❌ Failed to create chat session")
+                return jsonify({
+                    'success': False,
+                    'error': 'Failed to create chat session'
+                }), 500
         
         return jsonify({
             'success': True,
