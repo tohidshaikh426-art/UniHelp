@@ -1280,92 +1280,93 @@ def request_live_technician():
 @login_required
 def escalate_to_ticket():
     """Create ticket from chat session"""
-    data = request.get_json()
-    session_id = data.get('session_id')
-    category = data.get('category', 'Other')
+    try:
+        if not db.client:
+            return jsonify({'success': False, 'error': 'Database connection not available'}), 500
+        
+        data = request.get_json()
+        session_id = data.get('session_id')
+        category = data.get('category', 'Other')
+        
+        # Get chat session using Supabase
+        chat_session = db.get_chat_session_by_id(session_id)
+        
+        if not chat_session or chat_session['userid'] != session.get('user_id'):
+            return jsonify({'success': False, 'error': 'Invalid session'}), 403
+        
+        # Get chat messages using Supabase
+        messages = db.get_chat_messages_by_session(session_id)
+        
+        # Build ticket description from chat history
+        chat_transcript = "=== Chat Transcript ===\n\n"
+        for msg in messages:
+            sender = "You" if msg['sender'] == 'user' else "Bot"
+            chat_transcript += f"{sender}: {msg['message']}\n\n"
+        
+        chat_transcript += "=== End of Chat ===\n\nThis ticket was created from an unresolved chat session."
+        
+        # Extract main issue from first user message
+        first_user_msg = messages[0]['message'] if messages else "Issue reported via chat"
+        title = first_user_msg[:100] + "..." if len(first_user_msg) > 100 else first_user_msg
+        
+        # Create ticket using Supabase
+        new_ticket = db.create_ticket({
+            'title': f"[Chat Escalation] {title}",
+            'description': chat_transcript,
+            'category': category,
+            'userid': session.get('user_id'),
+            'status': 'Open'
+        })
+        
+        ticket_id = new_ticket['ticketid']
+        
+        # Update chat session using Supabase
+        db.client.table('chat_session').update({
+            'status': 'escalated',
+            'escalated_ticket_id': ticket_id,
+            'resolved_at': datetime.now().isoformat()
+        }).eq('sessionid', session_id).execute()
+        
+        return jsonify({
+            'success': True,
+            'ticket_id': ticket_id,
+            'message': 'Ticket created successfully. A technician will assist you soon.'
+        })
     
-    conn = get_db_connection()
-    
-    # Get chat session
-    chat_session = conn.execute('''
-        SELECT * FROM chat_session WHERE sessionid = ? AND userid = ?
-    ''', (session_id, session.get('user_id'))).fetchone()
-    
-    if not chat_session:
-        conn.close()
-        return jsonify({'success': False, 'error': 'Invalid session'}), 403
-    
-    # Get chat messages
-    messages = conn.execute('''
-        SELECT * FROM chat_message 
-        WHERE sessionid = ? 
-        ORDER BY created_at ASC
-    ''', (session_id,)).fetchall()
-    
-    # Build ticket description from chat history
-    chat_transcript = "=== Chat Transcript ===\\n\\n"
-    for msg in messages:
-        sender = "You" if msg['sender'] == 'user' else "Bot"
-        chat_transcript += f"{sender}: {msg['message']}\\n\\n"
-    
-    chat_transcript += "=== End of Chat ===\\n\\nThis ticket was created from an unresolved chat session."
-    
-    # Extract main issue from first user message
-    first_user_msg = messages['message'] if messages else "Issue reported via chat"
-    title = first_user_msg[:100] + "..." if len(first_user_msg) > 100 else first_user_msg
-    
-    # Create ticket
-    cursor = conn.execute('''
-        INSERT INTO ticket (title, description, category, userid, status)
-        VALUES (?, ?, ?, ?, 'Open')
-    ''', (f"[Chat Escalation] {title}", chat_transcript, category, session.get('user_id')))
-    
-    ticket_id = cursor.lastrowid
-    
-    # Update chat session
-    conn.execute('''
-        UPDATE chat_session 
-        SET status = 'escalated', escalated_ticket_id = ?, resolved_at = CURRENT_TIMESTAMP
-        WHERE sessionid = ?
-    ''', (ticket_id, session_id))
-    
-    conn.commit()
-    conn.close()
-    
-    return jsonify({
-        'success': True,
-        'ticket_id': ticket_id,
-        'message': 'Ticket created successfully. A technician will assist you soon.'
-    })
+    except Exception as e:
+        print(f"❌ Error escalating to ticket: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        return jsonify({'success': False, 'error': f'Failed to create ticket: {str(e)}'}), 500
 
 @app.route('/api/chat/history/<int:session_id>')
 @login_required
 def get_chat_history(session_id):
     """Get chat history for a session"""
-    conn = get_db_connection()
+    try:
+        if not db.client:
+            return jsonify({'success': False, 'error': 'Database connection not available'}), 500
+        
+        # Verify session belongs to user using Supabase
+        chat_session = db.get_chat_session_by_id(session_id)
+        
+        if not chat_session or chat_session['userid'] != session.get('user_id'):
+            return jsonify({'success': False, 'error': 'Invalid session'}), 403
+        
+        # Get messages using Supabase
+        messages = db.get_chat_messages_by_session(session_id)
+        
+        return jsonify({
+            'success': True,
+            'messages': messages,
+            'status': chat_session['status']
+        })
     
-    # Verify session belongs to user
-    chat_session = conn.execute('''
-        SELECT * FROM chat_session WHERE sessionid = ? AND userid = ?
-    ''', (session_id, session.get('user_id'))).fetchone()
-    
-    if not chat_session:
-        conn.close()
-        return jsonify({'success': False, 'error': 'Invalid session'}), 403
-    
-    messages = conn.execute('''
-        SELECT * FROM chat_message 
-        WHERE sessionid = ? 
-        ORDER BY created_at ASC
-    ''', (session_id,)).fetchall()
-    
-    conn.close()
-    
-    return jsonify({
-        'success': True,
-        'messages': [dict(msg) for msg in messages],
-        'status': chat_session['status']
-    })
+    except Exception as e:
+        print(f"❌ Error getting chat history: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        return jsonify({'success': False, 'error': f'Failed to get chat history: {str(e)}'}), 500
 
 
 # ==================== ADMIN DIRECT MESSAGING ====================
@@ -1376,39 +1377,43 @@ def get_chat_history(session_id):
 def admin_send_direct_message():
     """Admin sends direct message to technician WITHOUT chatbot escalation"""
     
-    data = request.get_json()
-    technician_id = data.get('technician_id')
-    message = data.get('message', '').strip()
-    ticket_id = data.get('ticket_id')  # Optional - link to ticket
+    try:
+        if not db.client:
+            return jsonify({'success': False, 'error': 'Database connection not available'}), 500
+        
+        data = request.get_json()
+        technician_id = data.get('technician_id')
+        message = data.get('message', '').strip()
+        ticket_id = data.get('ticket_id')  # Optional - link to ticket
+        
+        if not technician_id or not message:
+            return jsonify({'success': False, 'error': 'Invalid request'}), 400
+        
+        # Verify technician exists and is approved using Supabase
+        tech = db.get_user_by_id(technician_id)
+        
+        if not tech or tech['role'] != 'technician' or not tech.get('isapproved'):
+            return jsonify({'success': False, 'error': 'Technician not found'}), 404
+        
+        # Create a special admin message (not through chatbot)
+        # Store in chat_message table with sessionid as None or a special system session
+        db.client.table('chat_message').insert({
+            'sessionid': None,  # Direct message, not tied to a session
+            'sender': 'admin',
+            'message': f"[ADMIN] {session.get('name')}: {message}",
+            'intent': 'direct_message'
+        }).execute()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Message sent to {tech["name"]}'
+        })
     
-    if not technician_id or not message:
-        return jsonify({'success': False, 'error': 'Invalid request'}), 400
-    
-    conn = get_db_connection()
-    
-    # Verify technician exists and is approved
-    tech = conn.execute('''
-        SELECT * FROM user WHERE userid = ? AND role = 'technician' AND isapproved = 1
-    ''', (technician_id,)).fetchone()
-    
-    if not tech:
-        conn.close()
-        return jsonify({'success': False, 'error': 'Technician not found'}), 404
-    
-    # Create a special admin message (not through chatbot)
-    # Store in a separate or extended message system
-    conn.execute('''
-        INSERT INTO chat_message (sessionid, sender, message)
-        VALUES (?, 'admin', ?)
-    ''', (None, f"[ADMIN] {session.get('name')}: {message}"))
-    
-    conn.commit()
-    conn.close()
-    
-    return jsonify({
-        'success': True,
-        'message': f'Message sent to {tech["name"]}'
-    })
+    except Exception as e:
+        print(f"❌ Error sending admin message: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        return jsonify({'success': False, 'error': f'Failed to send message: {str(e)}'}), 500
 
 @app.route('/admin/technicians')
 @login_required
@@ -1468,11 +1473,10 @@ def admin_reports():
 @role_required(['admin'])
 def monthly_report(year, month):
     """Generate monthly report for specific month"""
-    conn = get_db_connection()
     
     # Format month for queries
     month_str = f"{year:04d}-{month:02d}"
-    start_date = f"{month_str}-01"
+    start_date = f"{month_str}-01T00:00:00"
     
     # Get next month for end date
     if month == 12:
@@ -1481,93 +1485,164 @@ def monthly_report(year, month):
     else:
         end_year = year
         end_month = month + 1
-    end_date = f"{end_year:04d}-{end_month:02d}-01"
+    end_date = f"{end_year:04d}-{end_month:02d}-01T00:00:00"
     
-    # 1. Overall ticket statistics
-    ticket_stats = conn.execute('''
-        SELECT 
-            COUNT(*) as total_tickets,
-            COUNT(CASE WHEN status IN ('Resolved', 'Closed') THEN 1 END) as resolved_tickets,
-            COUNT(CASE WHEN status = 'Open' THEN 1 END) as open_tickets,
-            COUNT(CASE WHEN status = 'In Progress' THEN 1 END) as in_progress_tickets,
-            AVG(CASE WHEN resolvedat IS NOT NULL THEN 
-                (julianday(resolvedat) - julianday(createdat)) * 24 END) as avg_resolution_hours,
-            AVG(satisfaction_rating) as avg_satisfaction
-        FROM ticket 
-        WHERE createdat >= ? AND createdat < ?
-    ''', (start_date, end_date)).fetchone()
+    try:
+        if not db.client:
+            flash('Database connection not available', 'error')
+            return redirect(url_for('admin_dashboard'))
+        
+        # Get all tickets for the month using Supabase
+        tickets_response = db.client.table('ticket').select('*')\
+            .gte('createdat', start_date)\
+            .lt('createdat', end_date)\
+            .execute()
+        
+        tickets = tickets_response.data if tickets_response.data else []
+        
+        # Calculate statistics in Python
+        total_tickets = len(tickets)
+        resolved_tickets = sum(1 for t in tickets if t.get('status') in ['Resolved', 'Closed'])
+        open_tickets = sum(1 for t in tickets if t.get('status') == 'Open')
+        in_progress_tickets = sum(1 for t in tickets if t.get('status') == 'In Progress')
+        
+        # Calculate average resolution time (for resolved tickets only)
+        resolution_times = []
+        for ticket in tickets:
+            if ticket.get('resolvedat') and ticket.get('createdat'):
+                try:
+                    created = datetime.fromisoformat(ticket['createdat'].replace('Z', '+00:00'))
+                    resolved = datetime.fromisoformat(ticket['resolvedat'].replace('Z', '+00:00'))
+                    hours = (resolved - created).total_seconds() / 3600
+                    resolution_times.append(hours)
+                except:
+                    pass
+        
+        avg_resolution_hours = sum(resolution_times) / len(resolution_times) if resolution_times else 0
+        
+        # Calculate average satisfaction
+        ratings = [t.get('satisfaction_rating') for t in tickets if t.get('satisfaction_rating')]
+        avg_satisfaction = sum(ratings) / len(ratings) if ratings else 0
+        
+        # Category statistics
+        category_counts = {}
+        for ticket in tickets:
+            cat = ticket.get('category', 'Other')
+            category_counts[cat] = category_counts.get(cat, 0) + 1
+        
+        category_stats = [{'category': cat, 'total': count} for cat, count in sorted(category_counts.items(), key=lambda x: x[1], reverse=True)]
+        
+        # Get all technicians
+        tech_response = db.client.table('user').select('*')\
+            .eq('role', 'technician')\
+            .eq('isapproved', True)\
+            .execute()
+        
+        technicians = tech_response.data if tech_response.data else []
+        
+        # Technician performance
+        technician_performance = []
+        for tech in technicians:
+            tech_tickets = [t for t in tickets if t.get('assignedto') == tech['userid']]
+            tech_resolved = sum(1 for t in tech_tickets if t.get('status') in ['Resolved', 'Closed'])
+            tech_hours = sum(t.get('time_spent_hours', 0) or 0 for t in tech_tickets)
+            
+            technician_performance.append({
+                'technician_name': tech['name'],
+                'technician_email': tech['email'],
+                'tickets_assigned': len(tech_tickets),
+                'tickets_resolved': tech_resolved,
+                'total_hours_worked': tech_hours
+            })
+        
+        technician_performance.sort(key=lambda x: x['tickets_resolved'], reverse=True)
+        
+        # Work log hours
+        work_log_response = db.client.table('technician_work_log').select('*')\
+            .gte('start_time', start_date)\
+            .lt('start_time', end_date)\
+            .execute()
+        
+        work_logs = work_log_response.data if work_log_response.data else []
+        
+        # Group by technician
+        work_by_tech = {}
+        for log in work_logs:
+            tech_id = log.get('technicianid')
+            if tech_id not in work_by_tech:
+                work_by_tech[tech_id] = {
+                    'total_hours': 0,
+                    'ticket_sessions': 0,
+                    'chat_sessions': 0,
+                    'maintenance_sessions': 0
+                }
+            
+            hours = log.get('hours_worked', 0) or 0
+            work_by_tech[tech_id]['total_hours'] += hours
+            
+            work_type = log.get('work_type', '')
+            if work_type == 'ticket_resolution':
+                work_by_tech[tech_id]['ticket_sessions'] += 1
+            elif work_type == 'live_chat':
+                work_by_tech[tech_id]['chat_sessions'] += 1
+            elif work_type == 'maintenance':
+                work_by_tech[tech_id]['maintenance_sessions'] += 1
+        
+        # Match with technician names
+        work_hours = []
+        for tech in technicians:
+            if tech['userid'] in work_by_tech:
+                tech_data = work_by_tech[tech['userid']]
+                work_hours.append({
+                    'technician_name': tech['name'],
+                    'technician_email': tech['email'],
+                    'total_work_hours': tech_data['total_hours'],
+                    'ticket_work_sessions': tech_data['ticket_sessions'],
+                    'chat_sessions': tech_data['chat_sessions'],
+                    'maintenance_sessions': tech_data['maintenance_sessions']
+                })
+        
+        work_hours.sort(key=lambda x: x['total_work_hours'], reverse=True)
+        
+        # Daily trend
+        daily_counts = {}
+        for ticket in tickets:
+            try:
+                date_str = ticket['createdat'][:10]  # YYYY-MM-DD
+                if date_str not in daily_counts:
+                    daily_counts[date_str] = {'created': 0, 'resolved': 0}
+                daily_counts[date_str]['created'] += 1
+                if ticket.get('status') in ['Resolved', 'Closed']:
+                    daily_counts[date_str]['resolved'] += 1
+            except:
+                pass
+        
+        daily_trend = [{'date': date, 'tickets_created': data['created'], 'tickets_resolved': data['resolved']} 
+                      for date, data in sorted(daily_counts.items())]
+        
+        return render_template('admin/monthly_report.html', 
+                             year=year, 
+                             month=month,
+                             month_name=datetime(year, month, 1).strftime('%B'),
+                             ticket_stats={
+                                 'total_tickets': total_tickets,
+                                 'resolved_tickets': resolved_tickets,
+                                 'open_tickets': open_tickets,
+                                 'in_progress_tickets': in_progress_tickets,
+                                 'avg_resolution_hours': avg_resolution_hours,
+                                 'avg_satisfaction': avg_satisfaction
+                             },
+                             category_stats=category_stats,
+                             technician_stats=technician_performance,
+                             work_hours=work_hours,
+                             daily_trend=daily_trend)
     
-    # 2. Tickets by category
-    category_stats = conn.execute('''
-        SELECT 
-            category,
-            COUNT(*) as total,
-            COUNT(CASE WHEN status IN ('Resolved', 'Closed') THEN 1 END) as resolved
-        FROM ticket 
-        WHERE createdat >= ? AND createdat < ?
-        GROUP BY category
-        ORDER BY total DESC
-    ''', (start_date, end_date)).fetchall()
-    
-    # 3. Technician performance
-    technician_stats = conn.execute('''
-        SELECT 
-            u.name as technician_name,
-            u.email as technician_email,
-            COUNT(t.ticketid) as tickets_assigned,
-            COUNT(CASE WHEN t.status IN ('Resolved', 'Closed') THEN 1 END) as tickets_resolved,
-            SUM(t.time_spent_hours) as total_hours_worked,
-            AVG(CASE WHEN t.resolvedat IS NOT NULL THEN 
-                (julianday(t.resolvedat) - julianday(t.createdat)) * 24 END) as avg_resolution_time,
-            AVG(t.satisfaction_rating) as avg_satisfaction
-        FROM user u
-        LEFT JOIN ticket t ON u.userid = t.assignedto 
-            AND t.createdat >= ? AND t.createdat < ?
-        WHERE u.role = 'technician' AND u.isapproved = 1
-        GROUP BY u.userid, u.name, u.email
-        ORDER BY tickets_resolved DESC
-    ''', (start_date, end_date)).fetchall()
-    
-    # 4. Work log hours by technician
-    work_hours = conn.execute('''
-        SELECT 
-            u.name as technician_name,
-            u.email as technician_email,
-            SUM(w.hours_worked) as total_work_hours,
-            COUNT(CASE WHEN w.work_type = 'ticket_resolution' THEN 1 END) as ticket_work_sessions,
-            COUNT(CASE WHEN w.work_type = 'live_chat' THEN 1 END) as chat_sessions,
-            COUNT(CASE WHEN w.work_type = 'maintenance' THEN 1 END) as maintenance_sessions
-        FROM user u
-        LEFT JOIN technician_work_log w ON u.userid = w.technicianid 
-            AND w.start_time >= ? AND w.start_time < ?
-        WHERE u.role = 'technician' AND u.isapproved = 1
-        GROUP BY u.userid, u.name, u.email
-        ORDER BY total_work_hours DESC
-    ''', (start_date, end_date)).fetchall()
-    
-    # 5. Daily ticket creation trend
-    daily_trend = conn.execute('''
-        SELECT 
-            DATE(createdat) as date,
-            COUNT(*) as tickets_created,
-            COUNT(CASE WHEN status IN ('Resolved', 'Closed') THEN 1 END) as tickets_resolved
-        FROM ticket 
-        WHERE createdat >= ? AND createdat < ?
-        GROUP BY DATE(createdat)
-        ORDER BY date
-    ''', (start_date, end_date)).fetchall()
-    
-    conn.close()
-    
-    return render_template('admin/monthly_report.html', 
-                         year=year, 
-                         month=month,
-                         month_name=datetime(year, month, 1).strftime('%B'),
-                         ticket_stats=ticket_stats,
-                         category_stats=category_stats,
-                         technician_stats=technician_stats,
-                         work_hours=work_hours,
-                         daily_trend=daily_trend)
+    except Exception as e:
+        print(f"❌ Error generating monthly report: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        flash('Failed to generate report', 'error')
+        return redirect(url_for('admin_dashboard'))
 
 @app.route('/admin/reports/generate/<int:year>/<int:month>')
 @login_required
@@ -1583,104 +1658,170 @@ def generate_monthly_report(year, month):
 @role_required(['admin'])
 def custom_date_report():
     """Generate custom date range report"""
-    start_date = request.args.get('start_date', '2024-01-01')
-    end_date = request.args.get('end_date', '2026-01-25')
-
-    # Add one day to end_date to include the full end date
-    end_date_plus_one = (datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
-
-    conn = get_db_connection()
-
-    # 1. Overall ticket statistics
-    ticket_stats = conn.execute('''
-        SELECT
-            COUNT(*) as total_tickets,
-            COUNT(CASE WHEN status IN ('Resolved', 'Closed') THEN 1 END) as resolved_tickets,
-            COUNT(CASE WHEN status = 'Open' THEN 1 END) as open_tickets,
-            COUNT(CASE WHEN status = 'In Progress' THEN 1 END) as in_progress_tickets,
-            AVG(CASE WHEN resolvedat IS NOT NULL THEN
-                (julianday(resolvedat) - julianday(createdat)) * 24 END) as avg_resolution_hours,
-            AVG(satisfaction_rating) as avg_satisfaction
-        FROM ticket
-        WHERE createdat >= ? AND createdat < ?
-    ''', (start_date, end_date_plus_one)).fetchone()
-
-    # 2. Tickets by category
-    category_stats = conn.execute('''
-        SELECT
-            category,
-            COUNT(*) as total,
-            COUNT(CASE WHEN status IN ('Resolved', 'Closed') THEN 1 END) as resolved
-        FROM ticket
-        WHERE createdat >= ? AND createdat < ?
-        GROUP BY category
-        ORDER BY total DESC
-    ''', (start_date, end_date_plus_one)).fetchall()
-
-    # 3. Technician performance
-    technician_stats = conn.execute('''
-        SELECT
-            u.name as technician_name,
-            u.email as technician_email,
-            COUNT(t.ticketid) as tickets_assigned,
-            COUNT(CASE WHEN t.status IN ('Resolved', 'Closed') THEN 1 END) as tickets_resolved,
-            SUM(t.time_spent_hours) as total_hours_worked,
-            AVG(CASE WHEN t.resolvedat IS NOT NULL THEN
-                (julianday(t.resolvedat) - julianday(t.createdat)) * 24 END) as avg_resolution_time,
-            AVG(t.satisfaction_rating) as avg_satisfaction
-        FROM user u
-        LEFT JOIN ticket t ON u.userid = t.assignedto
-            AND t.createdat >= ? AND t.createdat < ?
-        WHERE u.role = 'technician' AND u.isapproved = 1
-        GROUP BY u.userid, u.name, u.email
-        ORDER BY tickets_resolved DESC
-    ''', (start_date, end_date_plus_one)).fetchall()
-
-    # 4. Work log hours by technician
-    work_hours = conn.execute('''
-        SELECT
-            u.name as technician_name,
-            u.email as technician_email,
-            SUM(w.hours_worked) as total_work_hours,
-            COUNT(CASE WHEN w.work_type = 'ticket_resolution' THEN 1 END) as ticket_work_sessions,
-            COUNT(CASE WHEN w.work_type = 'live_chat' THEN 1 END) as chat_sessions,
-            COUNT(CASE WHEN w.work_type = 'maintenance' THEN 1 END) as maintenance_sessions
-        FROM user u
-        LEFT JOIN technician_work_log w ON u.userid = w.technicianid
-            AND w.start_time >= ? AND w.start_time < ?
-        WHERE u.role = 'technician' AND u.isapproved = 1
-        GROUP BY u.userid, u.name, u.email
-        ORDER BY total_work_hours DESC
-    ''', (start_date, end_date_plus_one)).fetchall()
-
-    # 5. Daily ticket creation trend
-    daily_trend = conn.execute('''
-        SELECT
-            DATE(createdat) as date,
-            COUNT(*) as tickets_created,
-            COUNT(CASE WHEN status IN ('Resolved', 'Closed') THEN 1 END) as tickets_resolved
-        FROM ticket
-        WHERE createdat >= ? AND createdat < ?
-        GROUP BY DATE(createdat)
-        ORDER BY date
-    ''', (start_date, end_date_plus_one)).fetchall()
-
-    conn.close()
-
-    # Format date range for display
-    start_display = datetime.strptime(start_date, '%Y-%m-%d').strftime('%B %d, %Y')
-    end_display = datetime.strptime(end_date, '%Y-%m-%d').strftime('%B %d, %Y')
-
-    return render_template('admin/custom_report.html',
-                         start_date=start_date,
-                         end_date=end_date,
-                         date_range=f"{start_display} - {end_display}",
-                         ticket_stats=ticket_stats,
-                         category_stats=category_stats,
-                         technician_stats=technician_stats,
-                         work_hours=work_hours,
-                         daily_trend=daily_trend,
-                         datetime=datetime)
+    try:
+        if not db.client:
+            flash('Database connection not available', 'error')
+            return redirect(url_for('admin_dashboard'))
+        
+        start_date = request.args.get('start_date', '2024-01-01')
+        end_date = request.args.get('end_date', '2026-01-25')
+        
+        # Add one day to end_date to include the full end date
+        end_date_plus_one = (datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%dT00:00:00')
+        start_datetime = f"{start_date}T00:00:00"
+        
+        # Get all tickets in date range
+        tickets_response = db.client.table('ticket').select('*')\
+            .gte('createdat', start_datetime)\
+            .lt('createdat', end_date_plus_one)\
+            .execute()
+        
+        tickets = tickets_response.data if tickets_response.data else []
+        
+        # Calculate statistics in Python
+        total_tickets = len(tickets)
+        resolved_tickets = sum(1 for t in tickets if t.get('status') in ['Resolved', 'Closed'])
+        open_tickets = sum(1 for t in tickets if t.get('status') == 'Open')
+        in_progress_tickets = sum(1 for t in tickets if t.get('status') == 'In Progress')
+        
+        # Calculate average resolution time
+        resolution_times = []
+        for ticket in tickets:
+            if ticket.get('resolvedat') and ticket.get('createdat'):
+                try:
+                    created = datetime.fromisoformat(ticket['createdat'].replace('Z', '+00:00'))
+                    resolved = datetime.fromisoformat(ticket['resolvedat'].replace('Z', '+00:00'))
+                    hours = (resolved - created).total_seconds() / 3600
+                    resolution_times.append(hours)
+                except:
+                    pass
+        
+        avg_resolution_hours = sum(resolution_times) / len(resolution_times) if resolution_times else 0
+        
+        # Category statistics
+        category_counts = {}
+        for ticket in tickets:
+            cat = ticket.get('category', 'Other')
+            category_counts[cat] = category_counts.get(cat, 0) + 1
+        
+        category_stats = [{'category': cat, 'total': count, 'resolved': 0} 
+                         for cat, count in sorted(category_counts.items(), key=lambda x: x[1], reverse=True)]
+        
+        # Get all technicians
+        tech_response = db.client.table('user').select('*')\
+            .eq('role', 'technician')\
+            .eq('isapproved', True)\
+            .execute()
+        
+        technicians = tech_response.data if tech_response.data else []
+        
+        # Technician performance
+        technician_performance = []
+        for tech in technicians:
+            tech_tickets = [t for t in tickets if t.get('assignedto') == tech['userid']]
+            tech_resolved = sum(1 for t in tech_tickets if t.get('status') in ['Resolved', 'Closed'])
+            tech_hours = sum(t.get('time_spent_hours', 0) or 0 for t in tech_tickets)
+            
+            technician_performance.append({
+                'technician_name': tech['name'],
+                'technician_email': tech['email'],
+                'tickets_assigned': len(tech_tickets),
+                'tickets_resolved': tech_resolved,
+                'total_hours_worked': tech_hours
+            })
+        
+        technician_performance.sort(key=lambda x: x['tickets_resolved'], reverse=True)
+        
+        # Work log hours
+        work_log_response = db.client.table('technician_work_log').select('*')\
+            .gte('start_time', start_datetime)\
+            .lt('start_time', end_date_plus_one)\
+            .execute()
+        
+        work_logs = work_log_response.data if work_log_response.data else []
+        
+        # Group by technician
+        work_by_tech = {}
+        for log in work_logs:
+            tech_id = log.get('technicianid')
+            if tech_id not in work_by_tech:
+                work_by_tech[tech_id] = {
+                    'total_hours': 0,
+                    'ticket_sessions': 0,
+                    'chat_sessions': 0,
+                    'maintenance_sessions': 0
+                }
+            
+            hours = log.get('hours_worked', 0) or 0
+            work_by_tech[tech_id]['total_hours'] += hours
+            
+            work_type = log.get('work_type', '')
+            if work_type == 'ticket_resolution':
+                work_by_tech[tech_id]['ticket_sessions'] += 1
+            elif work_type == 'live_chat':
+                work_by_tech[tech_id]['chat_sessions'] += 1
+            elif work_type == 'maintenance':
+                work_by_tech[tech_id]['maintenance_sessions'] += 1
+        
+        # Match with technician names
+        work_hours = []
+        for tech in technicians:
+            if tech['userid'] in work_by_tech:
+                tech_data = work_by_tech[tech['userid']]
+                work_hours.append({
+                    'technician_name': tech['name'],
+                    'technician_email': tech['email'],
+                    'total_work_hours': tech_data['total_hours'],
+                    'ticket_work_sessions': tech_data['ticket_sessions'],
+                    'chat_sessions': tech_data['chat_sessions'],
+                    'maintenance_sessions': tech_data['maintenance_sessions']
+                })
+        
+        work_hours.sort(key=lambda x: x['total_work_hours'], reverse=True)
+        
+        # Daily trend
+        daily_counts = {}
+        for ticket in tickets:
+            try:
+                date_str = ticket['createdat'][:10]  # YYYY-MM-DD
+                if date_str not in daily_counts:
+                    daily_counts[date_str] = {'created': 0, 'resolved': 0}
+                daily_counts[date_str]['created'] += 1
+                if ticket.get('status') in ['Resolved', 'Closed']:
+                    daily_counts[date_str]['resolved'] += 1
+            except:
+                pass
+        
+        daily_trend = [{'date': date, 'tickets_created': data['created'], 'tickets_resolved': data['resolved']} 
+                      for date, data in sorted(daily_counts.items())]
+        
+        # Format date range for display
+        start_display = datetime.strptime(start_date, '%Y-%m-%d').strftime('%B %d, %Y')
+        end_display = datetime.strptime(end_date, '%Y-%m-%d').strftime('%B %d, %Y')
+        
+        return render_template('admin/custom_report.html',
+                             start_date=start_date,
+                             end_date=end_date,
+                             date_range=f"{start_display} - {end_display}",
+                             ticket_stats={
+                                 'total_tickets': total_tickets,
+                                 'resolved_tickets': resolved_tickets,
+                                 'open_tickets': open_tickets,
+                                 'in_progress_tickets': in_progress_tickets,
+                                 'avg_resolution_hours': avg_resolution_hours
+                             },
+                             category_stats=category_stats,
+                             technician_stats=technician_performance,
+                             work_hours=work_hours,
+                             daily_trend=daily_trend,
+                             datetime=datetime)
+    
+    except Exception as e:
+        print(f"❌ Error generating custom report: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        flash('Failed to generate report', 'error')
+        return redirect(url_for('admin_dashboard'))
 
 # ==================== TECHNICIAN WORK LOGGING ====================
 
@@ -1689,114 +1830,147 @@ def custom_date_report():
 @role_required(['technician'])
 def start_work_session():
     """Start a work session for technician"""
-    data = request.get_json()
-    work_type = data.get('work_type', 'other')
-    ticket_id = data.get('ticket_id')
-    description = data.get('description', '')
-
-    if work_type not in ['ticket_resolution', 'live_chat', 'maintenance', 'other']:
-        return jsonify({'success': False, 'error': 'Invalid work type'}), 400
-
-    conn = get_db_connection()
-
-    # Check if there's already an active session
-    active_session = conn.execute('''
-        SELECT * FROM technician_work_log 
-        WHERE technicianid = ? AND end_time IS NULL
-    ''', (session.get('user_id'),)).fetchone()
-
-    if active_session:
-        conn.close()
-        return jsonify({'success': False, 'error': 'Active work session already exists'}), 400
-
-    # Start new work session
-    cursor = conn.execute('''
-        INSERT INTO technician_work_log (technicianid, ticketid, work_type, start_time, description)
-        VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?)
-    ''', (session.get('user_id'), ticket_id, work_type, description))
-
-    worklog_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
-
-    return jsonify({
-        'success': True,
-        'worklog_id': worklog_id,
-        'message': f'Work session started for {work_type}'
-    })
+    try:
+        if not db.client:
+            return jsonify({'success': False, 'error': 'Database connection not available'}), 500
+        
+        data = request.get_json()
+        work_type = data.get('work_type', 'other')
+        ticket_id = data.get('ticket_id')
+        description = data.get('description', '')
+        
+        if work_type not in ['ticket_resolution', 'live_chat', 'maintenance', 'other']:
+            return jsonify({'success': False, 'error': 'Invalid work type'}), 400
+        
+        tech_id = session.get('user_id')
+        
+        # Check if there's already an active session using Supabase
+        response = db.client.table('technician_work_log').select('*')\
+            .eq('technicianid', tech_id)\
+            .is_('end_time', None)\
+            .execute()
+        
+        if response.data and len(response.data) > 0:
+            return jsonify({'success': False, 'error': 'Active work session already exists'}), 400
+        
+        # Start new work session using Supabase
+        new_session = db.client.table('technician_work_log').insert({
+            'technicianid': tech_id,
+            'ticketid': ticket_id,
+            'work_type': work_type,
+            'start_time': datetime.now().isoformat(),
+            'description': description
+        }).execute()
+        
+        worklog_id = new_session.data[0]['worklogid'] if new_session.data else None
+        
+        return jsonify({
+            'success': True,
+            'worklog_id': worklog_id,
+            'message': f'Work session started for {work_type}'
+        })
+    
+    except Exception as e:
+        print(f"❌ Error starting work session: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        return jsonify({'success': False, 'error': f'Failed to start work session: {str(e)}'}), 500
 
 @app.route('/api/work/end/<int:worklog_id>', methods=['POST'])
 @login_required
 @role_required(['technician'])
 def end_work_session(worklog_id):
     """End a work session and calculate hours"""
-    conn = get_db_connection()
-
-    # Get the work session
-    work_session = conn.execute('''
-        SELECT * FROM technician_work_log 
-        WHERE worklogid = ? AND technicianid = ? AND end_time IS NULL
-    ''', (worklog_id, session.get('user_id'))).fetchone()
-
-    if not work_session:
-        conn.close()
-        return jsonify({'success': False, 'error': 'Work session not found or already ended'}), 404
-
-    # Calculate hours worked
-    start_time = datetime.fromisoformat(work_session['start_time'])
-    end_time = datetime.now()
-    hours_worked = (end_time - start_time).total_seconds() / 3600
-
-    # Update the session
-    conn.execute('''
-        UPDATE technician_work_log 
-        SET end_time = CURRENT_TIMESTAMP, hours_worked = ?
-        WHERE worklogid = ?
-    ''', (hours_worked, worklog_id))
-
-    # If this was ticket resolution, update ticket time_spent_hours
-    if work_session['ticketid'] and work_session['work_type'] == 'ticket_resolution':
-        conn.execute('''
-            UPDATE ticket 
-            SET time_spent_hours = COALESCE(time_spent_hours, 0) + ?, updatedat = CURRENT_TIMESTAMP
-            WHERE ticketid = ?
-        ''', (hours_worked, work_session['ticketid']))
-
-    conn.commit()
-    conn.close()
-
-    return jsonify({
-        'success': True,
-        'hours_worked': round(hours_worked, 2),
-        'message': f'Work session ended. {round(hours_worked, 2)} hours logged.'
-    })
+    try:
+        if not db.client:
+            return jsonify({'success': False, 'error': 'Database connection not available'}), 500
+        
+        tech_id = session.get('user_id')
+        
+        # Get the work session using Supabase
+        response = db.client.table('technician_work_log').select('*')\
+            .eq('worklogid', worklog_id)\
+            .eq('technicianid', tech_id)\
+            .is_('end_time', None)\
+            .execute()
+        
+        if not response.data or len(response.data) == 0:
+            return jsonify({'success': False, 'error': 'Work session not found or already ended'}), 404
+        
+        work_session = response.data[0]
+        
+        # Calculate hours worked
+        start_time = datetime.fromisoformat(work_session['start_time'])
+        end_time = datetime.now()
+        hours_worked = (end_time - start_time).total_seconds() / 3600
+        
+        # Update the session using Supabase
+        db.client.table('technician_work_log').update({
+            'end_time': end_time.isoformat(),
+            'hours_worked': hours_worked
+        }).eq('worklogid', worklog_id).execute()
+        
+        # If this was ticket resolution, update ticket time_spent_hours
+        if work_session.get('ticketid') and work_session['work_type'] == 'ticket_resolution':
+            # Get current ticket time
+            ticket = db.get_ticket_by_id(work_session['ticketid'])
+            current_hours = ticket.get('time_spent_hours', 0) or 0
+            new_hours = current_hours + hours_worked
+            
+            db.client.table('ticket').update({
+                'time_spent_hours': new_hours,
+                'updatedat': datetime.now().isoformat()
+            }).eq('ticketid', work_session['ticketid']).execute()
+        
+        return jsonify({
+            'success': True,
+            'hours_worked': round(hours_worked, 2),
+            'message': f'Work session ended. {round(hours_worked, 2)} hours logged.'
+        })
+    
+    except Exception as e:
+        print(f"❌ Error ending work session: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        return jsonify({'success': False, 'error': f'Failed to end work session: {str(e)}'}), 500
 
 @app.route('/api/work/active')
 @login_required
 @role_required(['technician'])
 def get_active_work_session():
     """Get current active work session for technician"""
-    conn = get_db_connection()
-
-    active_session = conn.execute('''
-        SELECT * FROM technician_work_log 
-        WHERE technicianid = ? AND end_time IS NULL
-        ORDER BY start_time DESC LIMIT 1
-    ''', (session.get('user_id'),)).fetchone()
-
-    conn.close()
-
-    if active_session:
-        return jsonify({
-            'active': True,
-            'worklog_id': active_session['worklogid'],
-            'work_type': active_session['work_type'],
-            'start_time': active_session['start_time'],
-            'description': active_session['description'],
-            'ticket_id': active_session['ticketid']
-        })
-    else:
-        return jsonify({'active': False})
+    try:
+        if not db.client:
+            return jsonify({'success': False, 'error': 'Database connection not available'}), 500
+        
+        tech_id = session.get('user_id')
+        
+        # Get active session using Supabase
+        response = db.client.table('technician_work_log').select('*')\
+            .eq('technicianid', tech_id)\
+            .is_('end_time', None)\
+            .order('start_time', desc=True)\
+            .limit(1)\
+            .execute()
+        
+        if response.data and len(response.data) > 0:
+            active_session = response.data[0]
+            return jsonify({
+                'active': True,
+                'worklog_id': active_session['worklogid'],
+                'work_type': active_session['work_type'],
+                'start_time': active_session['start_time'],
+                'description': active_session['description'],
+                'ticket_id': active_session['ticketid']
+            })
+        else:
+            return jsonify({'active': False})
+    
+    except Exception as e:
+        print(f"❌ Error getting active work session: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        return jsonify({'success': False, 'error': f'Failed to get active session: {str(e)}'}), 500
 
 @app.route('/technician/work_log')
 @login_required
@@ -1852,46 +2026,92 @@ def technician_work_log():
 @login_required
 def update_presence():
     """Update user online status"""
-    conn = get_db_connection()
+    try:
+        if not db.client:
+            return jsonify({'success': False, 'error': 'Database connection not available'}), 500
+        
+        user_id = session.get('user_id')
+        
+        # Check if presence record exists
+        existing = db.client.table('user_presence').select('*').eq('userid', user_id).execute()
+        
+        if existing.data and len(existing.data) > 0:
+            # Update existing record
+            db.client.table('user_presence').update({
+                'status': 'online',
+                'last_seen': datetime.now().isoformat()
+            }).eq('userid', user_id).execute()
+        else:
+            # Insert new record
+            db.client.table('user_presence').insert({
+                'userid': user_id,
+                'status': 'online',
+                'last_seen': datetime.now().isoformat()
+            }).execute()
+        
+        return jsonify({'success': True})
     
-    # SQLite doesn't support ON CONFLICT in older versions, so use INSERT OR REPLACE
-    conn.execute('''
-        INSERT OR REPLACE INTO user_presence (userid, status, last_seen)
-        VALUES (?, 'online', CURRENT_TIMESTAMP)
-    ''', (session.get('user_id'),))
-    
-    conn.commit()
-    conn.close()
-    
-    return jsonify({'success': True})
+    except Exception as e:
+        print(f"❌ Error updating presence: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        return jsonify({'success': False, 'error': f'Failed to update presence: {str(e)}'}), 500
 
 @app.route('/api/presence/technicians')
 @login_required
 def get_online_technicians():
     """Get list of online technicians"""
-    conn = get_db_connection()
+    try:
+        if not db.client:
+            return jsonify({'success': False, 'error': 'Database connection not available'}), 500
+        
+        # Get all approved technicians using Supabase
+        response = db.client.table('user').select('*')\
+            .eq('role', 'technician')\
+            .eq('isapproved', True)\
+            .execute()
+        
+        technicians = response.data if response.data else []
+        
+        # Filter for online ones (last seen within 2 minutes)
+        two_minutes_ago = datetime.now() - timedelta(minutes=2)
+        online_techs = []
+        
+        for tech in technicians:
+            # Check presence
+            presence_response = db.client.table('user_presence').select('*')\
+                .eq('userid', tech['userid'])\
+                .eq('status', 'online')\
+                .execute()
+            
+            if presence_response.data:
+                presence = presence_response.data[0]
+                last_seen_str = presence.get('last_seen')
+                if last_seen_str:
+                    try:
+                        last_seen = datetime.fromisoformat(last_seen_str.replace('Z', '+00:00'))
+                        if last_seen > two_minutes_ago:
+                            online_techs.append({
+                                'userid': tech['userid'],
+                                'name': tech['name'],
+                                'email': tech['email'],
+                                'status': 'online',
+                                'last_seen': last_seen_str
+                            })
+                    except:
+                        continue
+        
+        return jsonify({
+            'success': True,
+            'technicians': online_techs,
+            'count': len(online_techs)
+        })
     
-    # Get technicians online in last 2 minutes
-    two_minutes_ago = (datetime.now() - timedelta(minutes=2)).strftime('%Y-%m-%d %H:%M:%S')
-    
-    technicians = conn.execute('''
-        SELECT u.userid, u.name, u.email, p.status, p.last_seen
-        FROM user u
-        JOIN user_presence p ON u.userid = p.userid
-        WHERE u.role = 'technician' 
-        AND u.isapproved = 1
-        AND p.status = 'online'
-        AND p.last_seen > ?
-        ORDER BY p.last_seen DESC
-    ''', (two_minutes_ago,)).fetchall()
-    
-    conn.close()
-    
-    return jsonify({
-        'success': True,
-        'technicians': [dict(t) for t in technicians],
-        'count': len(technicians)
-    })
+    except Exception as e:
+        print(f"❌ Error getting online technicians: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        return jsonify({'success': False, 'error': f'Failed to get technicians: {str(e)}'}), 500
 
 # ==================== LIVE CHAT HANDOFF ====================
 
@@ -2477,23 +2697,33 @@ What's your IT issue today? I'm listening! 🎯''', 'unknown')
 
 def get_conversation_context(session_id):
     """Get previous conversation messages for context"""
-    conn = get_db_connection()
-    messages = conn.execute('''
-        SELECT sender, message FROM chat_message 
-        WHERE sessionid = ? 
-        ORDER BY created_at ASC
-        LIMIT 15
-    ''', (session_id,)).fetchall()
-    conn.close()
+    try:
+        if not db.client:
+            return []
+        
+        # Get messages using Supabase
+        response = db.client.table('chat_message').select('*')\
+            .eq('sessionid', session_id)\
+            .order('created_at', desc=False)\
+            .limit(15)\
+            .execute()
+        
+        messages = response.data if response.data else []
+        
+        context = []
+        for msg in messages:
+            role = "user" if msg['sender'] == 'user' else "assistant"
+            context.append({
+                "role": role,
+                "content": msg['message']
+            })
+        return context
     
-    context = []
-    for msg in messages:
-        role = "user" if msg['sender'] == 'user' else "assistant"
-        context.append({
-            "role": role,
-            "content": msg['message']
-        })
-    return context
+    except Exception as e:
+        print(f"❌ Error getting conversation context: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        return []
 
 
 def generate_ai_response(user_message, message_count, session_id):
