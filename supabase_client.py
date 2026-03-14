@@ -20,15 +20,7 @@ if SUPABASE_URL and SUPABASE_KEY:
         print(f"🔧 Initializing Supabase client...")
         print(f"URL: {SUPABASE_URL[:30]}...")
         print(f"Key length: {len(api_key)} chars")
-        print(f"SUPABASE_URL present: {bool(SUPABASE_URL)}")
-        print(f"SUPABASE_KEY present: {bool(SUPABASE_KEY)}")
-        print(f"SUPABASE_SERVICE_KEY present: {bool(SUPABASE_SERVICE_KEY)}")
-        print(f"Using API key type: {'SERVICE' if SUPABASE_SERVICE_KEY else 'ANON'}")
-        
-        # Create client with explicit options to avoid proxy issues
-        from supabase import create_client
         supabase: Client = create_client(SUPABASE_URL, api_key)
-        
         print("✅ Supabase Connected Successfully")
         if SUPABASE_SERVICE_KEY:
             print("🔑 Using Service Role Key (RLS bypassed)")
@@ -36,7 +28,6 @@ if SUPABASE_URL and SUPABASE_KEY:
             print("🔑 Using Anon Key (RLS enabled)")
     except Exception as e:
         print(f"❌ Supabase Connection Failed: {str(e)}")
-        print(f"Error type: {type(e).__name__}")
         import traceback
         print(f"Traceback: {traceback.format_exc()}")
         supabase = None
