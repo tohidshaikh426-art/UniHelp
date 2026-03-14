@@ -794,17 +794,14 @@ def start_chat_session():
             session_id = active_session['sessionid']
             print(f"✅ Reusing existing chat session: {session_id} for user {user_id}")
         else:
-            # Create new session
-            import uuid
-            new_session_id = str(uuid.uuid4())
-            print(f"🆕 Creating new session with ID: {new_session_id} for user {user_id}")
+            # Create new session - let Supabase auto-generate sessionid as integer
+            print(f"🆕 Creating new chat session for user {user_id}")
             
-            # Insert directly using Supabase client to ensure proper type handling
             try:
-                print(f"🔍 DEBUG: About to insert - sessionid={new_session_id}, userid={user_id} (type: {type(user_id).__name__}), status=active")
+                print(f"🔍 DEBUG: About to insert - userid={user_id} (type: {type(user_id).__name__}), status=active")
                 
+                # Insert with only userid and status - let DB auto-generate sessionid
                 response = db.client.table('chat_session').insert({
-                    'sessionid': new_session_id,
                     'userid': user_id,  # This MUST be integer
                     'status': 'active'
                 }).execute()
@@ -813,7 +810,7 @@ def start_chat_session():
                 
                 if response.data and len(response.data) > 0:
                     new_session = response.data[0]
-                    session_id = new_session_id
+                    session_id = new_session['sessionid']  # Get the auto-generated integer ID
                     print(f"✅ Created new chat session: {session_id} for user {user_id}")
                     print(f"📊 Session data: {new_session}")
                 else:
@@ -825,32 +822,12 @@ def start_chat_session():
                     
             except Exception as insert_error:
                 print(f"❌ Insert failed: {insert_error}")
-                print(f"Attempting with explicit type casting...")
-                
-                # Try alternative approach - maybe column name is different
-                # Check if table uses 'user_id' instead of 'userid'
-                try:
-                    response2 = db.client.table('chat_session').insert({
-                        'sessionid': new_session_id,
-                        'user_id': user_id,  # Alternative column name
-                        'status': 'active'
-                    }).execute()
-                    
-                    if response2.data and len(response2.data) > 0:
-                        session_id = new_session_id
-                        print(f"✅ Created with 'user_id' column: {session_id}")
-                    else:
-                        return jsonify({
-                            'success': False,
-                            'error': 'Failed to create chat session with alternative column'
-                        }), 500
-                        
-                except Exception as alt_error:
-                    print(f"❌ Alternative also failed: {alt_error}")
-                    return jsonify({
-                        'success': False,
-                        'error': f'Insert failed: {str(insert_error)}'
-                    }), 500
+                import traceback
+                print(f"Traceback: {traceback.format_exc()}")
+                return jsonify({
+                    'success': False,
+                    'error': f'Failed to create chat session: {str(insert_error)}'
+                }), 500
         
         return jsonify({
             'success': True,
