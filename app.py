@@ -801,11 +801,15 @@ def start_chat_session():
             
             # Insert directly using Supabase client to ensure proper type handling
             try:
+                print(f"🔍 DEBUG: About to insert - sessionid={new_session_id}, userid={user_id} (type: {type(user_id).__name__}), status=active")
+                
                 response = db.client.table('chat_session').insert({
                     'sessionid': new_session_id,
                     'userid': user_id,  # This MUST be integer
                     'status': 'active'
                 }).execute()
+                
+                print(f"📊 Insert response status: {response}")
                 
                 if response.data and len(response.data) > 0:
                     new_session = response.data[0]
