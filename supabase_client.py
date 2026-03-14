@@ -146,7 +146,7 @@ class DatabaseClient:
         response = self.client.table('comment').select('''
             *,
             user!comment_userid_fkey(name, email, role)
-        ''').eq('ticketid', ticket_id).order('createdat', asc=True).execute()
+        ''').eq('ticketid', ticket_id).order('created_at', desc=False).execute()
         return response.data
     
     def create_comment(self, comment_data):
@@ -205,7 +205,7 @@ class DatabaseClient:
         if not self.client:
             return []
         
-        response = self.client.table('chat_message').select('*').eq('sessionid', session_id).order('createdat', asc=True).execute()
+        response = self.client.table('chat_message').select('*').eq('sessionid', session_id).order('created_at', desc=False).execute()
         return response.data
     
     def create_chat_message(self, message_data):
