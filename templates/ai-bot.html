@@ -40,26 +40,60 @@
     </div>
 
     <!-- Chat Messages Container -->
-    <div id="chatContainer" class="bg-gray-50 p-6 h-96 overflow-y-auto border-b border-gray-200">
+    <div id="chatContainer" class="bg-gray-50 p-6 h-[500px] overflow-y-auto border-b border-gray-200">
         <div id="chatMessages" class="space-y-4">
             <!-- Initial bot message -->
-            <div class="flex items-start space-x-3">
-                <div class="w-8 h-8 bg-primary rounded-full flex items-center justify-center flex-shrink-0">
+            <div class="flex items-start space-x-3 fade-in">
+                <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-md">
                     <span class="text-white font-bold text-sm">🤖</span>
                 </div>
-                <div class="bg-white rounded-lg p-4 shadow-sm max-w-lg">
-                    <p class="text-gray-900"><strong>Hi there! 👋</strong></p>
-                    <p class="text-gray-700 text-sm mt-2">I'm your UniHelp IT Assistant. I'm here to help with:</p>
-                    <ul class="text-sm text-gray-700 mt-2 space-y-1 ml-4">
-                        <li>🔑 Password & Login issues</li>
-                        <li>🌐 Network & WiFi problems</li>
-                        <li>💻 Software & Application help</li>
-                        <li>🖥️ Hardware troubleshooting</li>
-                        <li>🖨️ Printer & Scanner issues</li>
-                        <li>📧 Email configuration</li>
-                        <li>👤 Account Access problems</li>
-                    </ul>
-                    <p class="text-gray-700 text-sm mt-3">Just tell me what's going wrong, and I'll guide you through the solution!</p>
+                <div class="bg-white rounded-lg p-4 shadow-sm max-w-lg border border-gray-100">
+                    <p class="text-gray-900 font-semibold">Hi there! 👋 I'm your UniHelp IT Assistant</p>
+                    <p class="text-gray-700 text-sm mt-2">I can help you with:</p>
+                    <div class="grid grid-cols-2 gap-2 mt-2">
+                        <div class="flex items-center space-x-2 text-sm text-gray-700">
+                            <span class="text-blue-500">🔑</span>
+                            <span>Login Issues</span>
+                        </div>
+                        <div class="flex items-center space-x-2 text-sm text-gray-700">
+                            <span class="text-blue-500">🌐</span>
+                            <span>WiFi Problems</span>
+                        </div>
+                        <div class="flex items-center space-x-2 text-sm text-gray-700">
+                            <span class="text-blue-500">💻</span>
+                            <span>Software Help</span>
+                        </div>
+                        <div class="flex items-center space-x-2 text-sm text-gray-700">
+                            <span class="text-blue-500">🖨️</span>
+                            <span>Printer Issues</span>
+                        </div>
+                        <div class="flex items-center space-x-2 text-sm text-gray-700">
+                            <span class="text-blue-500">📧</span>
+                            <span>Email Setup</span>
+                        </div>
+                        <div class="flex items-center space-x-2 text-sm text-gray-700">
+                            <span class="text-blue-500">🔒</span>
+                            <span>Security</span>
+                        </div>
+                    </div>
+                    <p class="text-gray-700 text-sm mt-3">Just describe your issue below!</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Typing Indicator (Hidden by default) -->
+        <div id="typingIndicator" class="hidden mt-4">
+            <div class="flex items-start space-x-3">
+                <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-md">
+                    <span class="text-white font-bold text-sm">🤖</span>
+                </div>
+                <div class="bg-white rounded-lg p-4 shadow-sm border border-gray-100">
+                    <div class="flex space-x-2">
+                        <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0ms"></div>
+                        <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 150ms"></div>
+                        <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 300ms"></div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2">AI is thinking...</p>
                 </div>
             </div>
         </div>
@@ -67,13 +101,33 @@
 
     <!-- Chat Input -->
     <div class="bg-white shadow p-4">
+        <!-- Quick Suggestions -->
+        <div id="quickSuggestions" class="flex flex-wrap gap-2 mb-3 pb-3 border-b border-gray-200">
+            <p class="text-xs text-gray-500 w-full mb-1">Quick start:</p>
+            <button onclick="useSuggestion('I forgot my password')" class="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-full text-xs font-medium transition border border-blue-200">
+                🔑 Forgot Password
+            </button>
+            <button onclick="useSuggestion('WiFi not connecting')" class="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-full text-xs font-medium transition border border-blue-200">
+                🌐 WiFi Issues
+            </button>
+            <button onclick="useSuggestion('Printer won\'t print')" class="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-full text-xs font-medium transition border border-blue-200">
+                🖨️ Printer Problem
+            </button>
+            <button onclick="useSuggestion('Can\'t access email')" class="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-full text-xs font-medium transition border border-blue-200">
+                📧 Email Issue
+            </button>
+            <button onclick="useSuggestion('Computer is slow')" class="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-full text-xs font-medium transition border border-blue-200">
+                💻 Slow Computer
+            </button>
+        </div>
+        
         <form id="chatForm" class="flex space-x-3">
             <input type="text" id="userMessage" 
                    class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
-                   placeholder="Type your issue here... e.g., 'my printer won't print' or 'can't login to wifi'"
+                   placeholder="Describe your IT issue... e.g., 'printer won't connect' or 'can't login to WiFi'"
                    autocomplete="off">
             <button type="submit" 
-                    class="bg-primary text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition font-medium flex items-center space-x-2 whitespace-nowrap">
+                    class="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-blue-800 transition font-medium flex items-center space-x-2 whitespace-nowrap shadow-md">
                 <span>Send</span>
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
@@ -166,6 +220,12 @@ let currentSessionId = null;
 let messageCount = 0;
 let liveChatActive = false;
 
+// Use suggestion from quick start buttons
+function useSuggestion(text) {
+    document.getElementById('userMessage').value = text;
+    document.getElementById('userMessage').focus();
+}
+
 window.addEventListener('DOMContentLoaded', async () => {
     // Check AI status and start session in parallel
     const [statusResponse, startResponse] = await Promise.all([
@@ -237,20 +297,24 @@ function addMessageToChat(sender, message) {
     const messageDiv = document.createElement('div');
     
     if (sender === 'user') {
-        messageDiv.className = 'flex items-end justify-end space-x-2';
+        messageDiv.className = 'flex items-end justify-end space-x-2 fade-in';
         messageDiv.innerHTML = `
-            <div class="bg-primary text-white rounded-lg px-4 py-2 shadow-sm max-w-sm">
+            <div class="bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg px-4 py-2 shadow-md max-w-sm">
                 <p class="text-sm whitespace-pre-wrap">${escapeHtml(message)}</p>
             </div>
         `;
     } else {
-        messageDiv.className = 'flex items-start space-x-3';
+        messageDiv.className = 'flex items-start space-x-3 fade-in';
+        // Format message with better styling (convert **bold** and numbered lists)
+        let formattedMessage = escapeHtml(message);
+        formattedMessage = formatBotResponse(formattedMessage);
+        
         messageDiv.innerHTML = `
-            <div class="w-8 h-8 bg-primary rounded-full flex items-center justify-center flex-shrink-0">
+            <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-md">
                 <span class="text-white font-bold text-sm">🤖</span>
             </div>
-            <div class="bg-white rounded-lg p-4 shadow-sm max-w-lg">
-                <p class="text-gray-900 text-sm whitespace-pre-wrap">${escapeHtml(message)}</p>
+            <div class="bg-white rounded-lg p-4 shadow-sm max-w-lg border border-gray-100">
+                <div class="text-gray-900 text-sm prose prose-sm max-w-none ${formattedMessage}"></div>
             </div>
         `;
     }
@@ -261,27 +325,39 @@ function addMessageToChat(sender, message) {
     chatContainer.scrollTop = chatContainer.scrollHeight;
 }
 
-function showTypingIndicator() {
-    const container = document.getElementById('chatMessages');
-    const typingDiv = document.createElement('div');
-    typingDiv.id = 'typingIndicator';
-    typingDiv.className = 'flex items-start space-x-3';
-    typingDiv.innerHTML = `
-        <div class="w-8 h-8 bg-primary rounded-full flex items-center justify-center flex-shrink-0">
-            <span class="text-white font-bold text-sm">🤖</span>
-        </div>
-        <div class="bg-white rounded-lg p-4 shadow-sm">
-            <div class="flex space-x-1">
-                <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.1s;"></div>
-                <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.2s;"></div>
-            </div>
-        </div>
-    `;
-    container.appendChild(typingDiv);
+// Format bot responses with markdown-like styling
+function formatBotResponse(text) {
+    // Convert **bold** to <strong>
+    text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     
-    const chatContainer = document.getElementById('chatContainer');
-    chatContainer.scrollTop = chatContainer.scrollHeight;
+    // Convert numbered lists (1. 2. 3.) to ordered list HTML
+    text = text.replace(/^(\d+\.\s.+)$/gm, '<li class="ml-4">$1</li>');
+    text = text.replace(/(<li.*$)/s, '<ol class="list-decimal space-y-1 my-2">$1</ol>');
+    
+    // Convert bullet points (- or *) to unordered list
+    text = text.replace(/^[\-\*]\s(.+)$/gm, '<li class="ml-4">• $1</li>');
+    text = text.replace(/(<li.*$)/s, '<ul class="list-disc space-y-1 my-2">$1</ul>');
+    
+    // Add paragraph breaks
+    text = text.replace(/\n\n/g, '</p><p class="mt-2">');
+    
+    // Wrap in paragraph tags
+    if (!text.startsWith('<')) {
+        text = '<p>' + text + '</p>';
+    } else {
+        text = '<p>' + text + '</p>';
+    }
+    
+    return text;
+}
+
+function showTypingIndicator() {
+    const indicator = document.getElementById('typingIndicator');
+    if (indicator) {
+        indicator.classList.remove('hidden');
+        const chatContainer = document.getElementById('chatContainer');
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
 }
 
 function removeTypingIndicator() {
