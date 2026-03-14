@@ -4,50 +4,169 @@
 
 {% block content %}
 <div class="space-y-6">
-    <div class="bg-white rounded-lg shadow p-6">
-        <h1 class="text-3xl font-bold text-gray-900">Active Live Chats</h1>
-        <p class="text-gray-600 mt-2">Real-time conversations with users</p>
+    <!-- Notification Banner -->
+    <div id="notificationBanner" class="hidden fixed top-4 right-4 bg-green-500 text-white px-6 py-4 rounded-lg shadow-xl z-50 animate-bounce">
+        <div class="flex items-center space-x-3">
+            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-7 7v-7z"/>
+                <path d="M5 5a2 2 0 00-2 2v8l4-4h5a2 2 0 002-2V7a2 2 0 00-2-2H5z"/>
+            </svg>
+            <span id="notificationText">New chat request received!</span>
+        </div>
     </div>
 
-    {% if live_chats %}
-    <div class="grid grid-cols-1 gap-6">
-        {% for chat in live_chats %}
-        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-green-500">
-            <div class="flex items-center justify-between mb-4">
-                <div>
-                    <h3 class="text-lg font-semibold text-gray-900">{{ chat.user_name }}</h3>
-                    <p class="text-sm text-gray-600">{{ chat.user_email }} • {{ chat.user_role }}</p>
-                </div>
-                <span class="px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full flex items-center">
-                    <span class="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
-                    Active
-                </span>
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">Active Live Chats</h1>
+                <p class="text-gray-600 mt-2">Real-time conversations with users</p>
             </div>
-            
-            <div class="flex space-x-3">
-                <a href="{{ url_for('view_ticket', ticket_id=chat.sessionid) }}" 
-                   class="bg-primary text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
-                    View Chat
-                </a>
-                <button onclick="endChat({{ chat.livechatid }})" 
-                        class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition">
-                    End Chat
+            <div class="flex items-center space-x-2">
+                <span id="connectionStatus" class="px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full flex items-center">
+                    <span class="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
+                    Connected
+                </span>
+                <button onclick="checkForChats()" class="p-2 text-gray-600 hover:text-primary" title="Refresh">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
                 </button>
             </div>
         </div>
-        {% endfor %}
     </div>
-    {% else %}
-    <div class="bg-white rounded-lg shadow p-12 text-center">
-        <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-        </svg>
-        <p class="text-gray-600">No active live chats at the moment</p>
+
+    <div id="chatsContainer">
+        {% if live_chats %}
+        <div class="grid grid-cols-1 gap-6">
+            {% for chat in live_chats %}
+            <div class="bg-white rounded-lg shadow p-6 border-l-4 border-green-500 hover:shadow-lg transition-shadow">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">{{ chat.user_name }}</h3>
+                        <p class="text-sm text-gray-600">{{ chat.user_email }} • {{ chat.user_role }}</p>
+                        {% if chat.last_message %}
+                        <p class="text-sm text-gray-500 mt-2 italic">"{{ chat.last_message[:100] }}..."</p>
+                        {% endif %}
+                    </div>
+                    <span class="px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full flex items-center">
+                        <span class="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
+                        Active
+                    </span>
+                </div>
+                
+                <div class="flex space-x-3">
+                    <a href="{{ url_for('view_technician_chat', live_chat_id=chat.livechatid) }}" 
+                       class="bg-primary text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition flex items-center space-x-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                        </svg>
+                        <span>Open Chat</span>
+                    </a>
+                    <button onclick="endChat({{ chat.livechatid }})" 
+                            class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition">
+                        End Chat
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div id="noChatsPanel" class="bg-white rounded-lg shadow p-12 text-center">
+            <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+            <p class="text-gray-600 text-lg">No active live chats at the moment</p>
+            <p class="text-gray-500 text-sm mt-2">Waiting for incoming chat requests...</p>
+            <div class="mt-4 flex items-center justify-center space-x-2 text-sm text-gray-500">
+                <span class="animate-spin">⏳</span>
+                <span>Auto-refreshing every 3 seconds</span>
+            </div>
+        </div>
+        {% endif %}
     </div>
-    {% endif %}
 </div>
 
+<!-- Audio notification -->
+<audio id="notificationSound" preload="auto">
+    <source src="https://assets.mixkit.co/sfx/preview/mixkit-software-interface-start-2574.mp3" type="audio/mpeg">
+</audio>
+
 <script>
+let lastChatCount = {{ live_chats|length if live_chats else 0 }};
+let hasPlayedSound = false;
+
+// Check for new chats
+async function checkForChats() {
+    try {
+        const response = await fetch('/technician/new_chats');
+        const data = await response.json();
+        
+        if (data.success) {
+            const currentCount = data.count;
+            
+            // Show notification if new chat arrived
+            if (currentCount > lastChatCount && currentCount > 0) {
+                showNotification(currentCount);
+                playNotificationSound();
+            }
+            
+            lastChatCount = currentCount;
+            
+            // Update UI if we're on the page and there are chats
+            if (currentCount > 0 && document.getElementById('noChatsPanel')) {
+                // Reload to show new chats
+                setTimeout(() => location.reload(), 500);
+            }
+            
+            // Update connection status
+            updateConnectionStatus(true);
+        }
+    } catch (error) {
+        console.error('Error checking for chats:', error);
+        updateConnectionStatus(false);
+    }
+}
+
+// Show notification banner
+function showNotification(count) {
+    const banner = document.getElementById('notificationBanner');
+    const text = document.getElementById('notificationText');
+    
+    text.textContent = `🔔 New ${count === 1 ? 'chat' : 'chats'} received!`;
+    banner.classList.remove('hidden');
+    
+    // Hide after 5 seconds
+    setTimeout(() => {
+        banner.classList.add('hidden');
+    }, 5000);
+}
+
+// Play notification sound
+function playNotificationSound() {
+    if (!hasPlayedSound) {
+        const audio = document.getElementById('notificationSound');
+        audio.play().catch(e => console.log('Audio play failed:', e));
+        hasPlayedSound = true;
+        
+        // Reset flag after 10 seconds
+        setTimeout(() => {
+            hasPlayedSound = false;
+        }, 10000);
+    }
+}
+
+// Update connection status indicator
+function updateConnectionStatus(connected) {
+    const status = document.getElementById('connectionStatus');
+    if (connected) {
+        status.className = 'px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full flex items-center';
+        status.innerHTML = '<span class="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>Connected';
+    } else {
+        status.className = 'px-3 py-1 bg-red-100 text-red-800 text-sm rounded-full flex items-center';
+        status.innerHTML = '<span class="w-2 h-2 bg-red-500 rounded-full mr-2"></span>Disconnected';
+    }
+}
+
 async function endChat(liveChatId) {
     if (!confirm('Are you sure you want to end this chat?')) return;
     
@@ -58,7 +177,15 @@ async function endChat(liveChatId) {
     location.reload();
 }
 
-// Auto-refresh every 10 seconds
-setInterval(() => location.reload(), 10000);
+// Real-time updates - check every 3 seconds (like WhatsApp)
+setInterval(checkForChats, 3000);
+
+// Initial check
+checkForChats();
+
+// Request notification permission
+if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+}
 </script>
 {% endblock %}

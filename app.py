@@ -2601,7 +2601,7 @@ def chat_status():
 @login_required
 @role_required(['technician'])
 def get_new_chats():
-    """Get new chat requests for technician"""
+    """Get new chat requests for technician - API endpoint for real-time updates"""
     tech_id = session.get('user_id')
     
     # Get active live chats for this technician
@@ -2646,7 +2646,8 @@ def get_new_chats():
     return jsonify({
         'success': True,
         'new_chats': new_chats,
-        'count': len(new_chats)
+        'count': len(new_chats),
+        'has_new_chat': len(new_chats) > 0
     })
 
 
