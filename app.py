@@ -748,24 +748,27 @@ def start_chat_session():
                 'error': 'Database connection not available'
             }), 500
         
+        # Ensure user_id is an integer
+        user_id = int(session.get('user_id', 0))
+        
         # Check for active session
-        response = db.client.table('chat_session').select('*').eq('userid', session.get('user_id')).eq('status', 'active').order('created_at', desc=True).limit(1).execute()
+        response = db.client.table('chat_session').select('*').eq('userid', user_id).eq('status', 'active').order('created_at', desc=True).limit(1).execute()
         active_session = response.data[0] if response.data else None
         
         if active_session:
             session_id = active_session['sessionid']
-            print(f"✅ Reusing existing chat session: {session_id}")
+            print(f"✅ Reusing existing chat session: {session_id} for user {user_id}")
         else:
             # Create new session
             import uuid
             new_session_id = str(uuid.uuid4())
             new_session = db.create_chat_session({
                 'sessionid': new_session_id,
-                'userid': session.get('user_id'),
+                'userid': user_id,
                 'status': 'active'
             })
             session_id = new_session_id if new_session else None
-            print(f"✅ Created new chat session: {session_id} for user {session.get('user_id')}")
+            print(f"✅ Created new chat session: {session_id} for user {user_id}")
         
         return jsonify({
             'success': True,
@@ -790,7 +793,10 @@ def send_chat_message():
         session_id = data.get('session_id')
         user_message = data.get('message', '').strip()
         
-        print(f"💬 Chat message received - Session: {session_id}, User: {session.get('user_id')}")
+        # Ensure user_id is an integer
+        user_id = int(session.get('user_id', 0))
+        
+        print(f"💬 Chat message received - Session: {session_id}, User: {user_id}")
         
         if not user_message or not session_id:
             return jsonify({'success': False, 'error': 'Invalid data'}), 400
@@ -802,8 +808,8 @@ def send_chat_message():
             print(f"❌ Chat session not found: {session_id}")
             return jsonify({'success': False, 'error': 'Session not found'}), 404
         
-        if chat_session['userid'] != session.get('user_id'):
-            print(f"❌ Session user mismatch - Session owner: {chat_session['userid']}, Current user: {session.get('user_id')}")
+        if chat_session['userid'] != user_id:
+            print(f"❌ Session user mismatch - Session owner: {chat_session['userid']}, Current user: {user_id}")
             return jsonify({'success': False, 'error': 'Invalid session'}), 403
         
         if chat_session['status'] != 'active':
