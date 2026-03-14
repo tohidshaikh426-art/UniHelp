@@ -2701,7 +2701,7 @@ def view_technician_chat(live_chat_id):
             user_email = user_data['email']
     
     # Get chat messages
-    msg_response = db.client.table('chat_message').select('*').eq('sessionid', live_chat['sessionid']).order('created_at', asc=True).execute()
+    msg_response = db.client.table('chat_message').select('*').eq('sessionid', live_chat['sessionid']).order('created_at', desc=False).execute()
     messages = msg_response.data if msg_response.data else []
     
     return render_template('technician/chat_view.html', 
