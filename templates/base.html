@@ -473,10 +473,16 @@
                     'other': '❓'
                 };
                 
+                // Parse ISO date strings properly
                 const startDate = new Date(session.start_time);
                 const endDate = session.end_time ? new Date(session.end_time) : null;
                 
-                // Format times in 12-hour format
+                console.log('Session:', session);
+                console.log('Start Time ISO:', session.start_time);
+                console.log('Start Time Parsed:', startDate);
+                console.log('Start Time Local:', startDate.toLocaleString());
+                
+                // Format times in 12-hour format with seconds
                 const startTimeStr = startDate.toLocaleTimeString('en-US', { 
                     hour: '2-digit', 
                     minute: '2-digit', 
@@ -491,6 +497,7 @@
                     hour12: true 
                 }) : '<span class="text-yellow-600 font-medium">Active</span>';
                 
+                // Format date as readable string
                 const dateStr = startDate.toLocaleDateString('en-US', { 
                     month: 'short', 
                     day: 'numeric',
