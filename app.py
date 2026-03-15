@@ -2086,6 +2086,37 @@ def get_active_work_session():
         print(f"Traceback: {traceback.format_exc()}")
         return jsonify({'success': False, 'error': f'Failed to get active session: {str(e)}'}), 500
 
+@app.route('/api/work/sessions/history')
+@login_required
+@role_required(['technician'])
+def get_work_sessions_history():
+    """Get work sessions history for current month"""
+    try:
+        if not db.client:
+            return jsonify({'success': False, 'error': 'Database connection not available'}), 500
+        
+        tech_id = session.get('user_id')
+        
+        # Get work sessions for current month
+        current_month = datetime.now().strftime('%Y-%m')
+        start_date = f"{current_month}-01T00:00:00"
+        
+        response = db.client.table('technician_work_log').select('*')\
+            .eq('technicianid', tech_id)\
+            .gte('start_time', start_date)\
+            .order('start_time', desc=True)\
+            .execute()
+        
+        work_sessions = response.data if response.data else []
+        
+        return jsonify({'success': True, 'sessions': work_sessions})
+    
+    except Exception as e:
+        print(f"❌ Error getting work sessions history: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        return jsonify({'success': False, 'error': f'Failed to get work sessions: {str(e)}'}), 500
+
 @app.route('/api/ticket/start_work/<int:ticket_id>', methods=['POST'])
 @login_required
 @role_required(['technician'])

@@ -153,7 +153,7 @@
                                 {% elif session.end_time %}
                                     --
                                 {% else %}
-                                    <span class="text-green-600 font-mono" id="live-timer-{{ session.worklogid }}">Calculating...</span>
+                                    <span class="text-green-600 font-mono" id="live-timer-{{ session.worklogid }}">Loading...</span>
                                 {% endif %}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -205,19 +205,30 @@ function updateElapsedTime(startTime) {
     // If difference is negative or too large, something is wrong
     if (diffMs < 0 || diffMs > 86400000) { // More than 24 hours
         console.warn('Invalid time difference:', diffMs);
-        const elapsedEl = document.getElementById('elapsedTime');
-        if (elapsedEl) {
-            elapsedEl.textContent = '00:00:00';
-        }
-        return;
+        return '00:00:00';
     }
     
     const diffHours = diffMs / (1000 * 60 * 60);
-    
-    const elapsedEl = document.getElementById('elapsedTime');
-    if (elapsedEl) {
-        elapsedEl.textContent = formatDurationDisplay(diffHours);
-    }
+    return formatDurationDisplay(diffHours);
+}
+
+// Update all live timers on page
+function updateAllLiveTimers() {
+    document.querySelectorAll('[id^="live-timer-"]').forEach(el => {
+        const worklogId = el.id.replace('live-timer-', '');
+        // Find corresponding session data
+        const sessionRow = el.closest('tr');
+        const startTimeStr = sessionRow.querySelector('td:nth-child(4)').textContent.trim();
+        
+        // Parse start time and convert to Date object
+        // Format should be like "09:30:00 AM"
+        const today = new Date().toDateString();
+        const startTime = new Date(today + ' ' + startTimeStr);
+        
+        if (!isNaN(startTime.getTime())) {
+            el.textContent = updateElapsedTime(startTime);
+        }
+    });
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -225,9 +236,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Update elapsed time every second for active sessions
     setInterval(() => {
-        if (activeWorklogId && window.activeStartTime) {
-            updateElapsedTime(window.activeStartTime);
-        }
+        updateAllLiveTimers();
     }, 1000);
 });
 
