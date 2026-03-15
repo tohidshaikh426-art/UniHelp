@@ -451,14 +451,22 @@
             
             let html = `
                 <div class="overflow-x-auto">
+                    <div class="bg-blue-50 border-l-4 border-blue-400 p-3 mb-4">
+                        <p class="text-sm text-blue-700">
+                            <svg class="w-4 h-4 inline mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                            </svg>
+                            <strong>Note:</strong> All times are displayed in <strong>${Intl.DateTimeFormat().resolvedOptions().timeZone}</strong> timezone (your browser's local time).
+                        </p>
+                    </div>
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
                             <tr>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ticket</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Start</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">End</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Start (Local)</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">End (Local)</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Duration</th>
                             </tr>
                         </thead>
