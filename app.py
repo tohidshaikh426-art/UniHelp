@@ -1274,6 +1274,15 @@ def request_technician_chat():
             'intent': 'system'
         })
         
+        # Add initial greeting from technician
+        greeting_msg = f"Hello! I'm {available_tech['name']}, your IT technician. How can I help you today?"
+        db.create_chat_message({
+            'sessionid': session_id,
+            'sender': 'technician',
+            'message': greeting_msg,
+            'intent': 'greeting'
+        })
+        
         print(f"✅ SUCCESS - Chat assigned to {available_tech['name']}")
         
         return jsonify({
