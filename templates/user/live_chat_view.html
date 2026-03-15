@@ -119,41 +119,48 @@ function scrollToBottom() {
 scrollToBottom();
 
 // Send message
-document.getElementById('messageForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
-    const input = document.getElementById('messageInput');
-    const message = input.value.trim();
-    
-    if (!message) return;
-    
-    try {
-        const response = await fetch('/api/chat/technician/send', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                session_id: sessionId,
-                message: message
-            })
-        });
+const form = document.getElementById('messageForm');
+if (form) {
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
         
-        const data = await response.json();
+        const input = document.getElementById('messageInput');
+        const message = input.value.trim();
         
-        if (data.success) {
-            // Add message to UI
-            addMessage(message, 'user');
-            input.value = '';
+        if (!message || !sessionId) return;
+        
+        try {
+            const response = await fetch('/api/chat/message', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    session_id: sessionId,
+                    message: message
+                })
+            });
             
-            // Scroll to bottom
-            setTimeout(scrollToBottom, 100);
-        } else {
-            alert('Failed to send message: ' + (data.error || 'Unknown error'));
+            const data = await response.json();
+            
+            if (data.success) {
+                // During live chat, no bot response - just clear input
+                if (data.live_chat_active) {
+                    console.log('✅ Message sent to technician');
+                } else if (data.bot_message) {
+                    addMessage(message, 'user');
+                }
+                input.value = '';
+                
+                // Scroll to bottom
+                setTimeout(scrollToBottom, 100);
+            } else {
+                alert('Failed to send message: ' + (data.error || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Error sending message:', error);
+            alert('Failed to send message. Please check your connection.');
         }
-    } catch (error) {
-        console.error('Error sending message:', error);
-        alert('Failed to send message. Please check your connection.');
-    }
-});
+    });
+}
 
 // Add message to UI
 function addMessage(text, sender) {
@@ -189,16 +196,30 @@ async function endChat() {
 
 // Poll for new messages every 2 seconds
 let lastMessageCount = {{ messages|length if messages else 0 }};
+let hasReloaded = false; // Prevent multiple reloads
 
 setInterval(async () => {
+    if (!sessionId || hasReloaded) return; // Don't poll if no session or already reloading
+    
     try {
         const response = await fetch(`/api/chat/session/${sessionId}/messages`);
         const data = await response.json();
         
+        console.log('📊 Polling - found', data.messages ? data.messages.length : 0, 'technician messages');
+        
         if (data.success && data.messages && data.messages.length > 0) {
-            const currentMessages = document.querySelectorAll('#messagesContainer .flex');
-            if (currentMessages.length < data.messages.length + lastMessageCount) {
-                location.reload(); // Reload to get new messages from server
+            // Count only technician messages in current DOM
+            const currentTechMessages = document.querySelectorAll('#messagesContainer .flex.justify-start');
+            
+            console.log('Current tech messages in DOM:', currentTechMessages.length, 'New messages:', data.messages.length);
+            
+            // Only reload if there are NEW technician messages
+            if (data.messages.length > currentTechMessages.length) {
+                console.log('✅ New technician message detected! Reloading...');
+                hasReloaded = true; // Prevent multiple reloads
+                setTimeout(() => {
+                    location.reload();
+                }, 500); // Small delay to ensure log is seen
             }
         }
     } catch (error) {
