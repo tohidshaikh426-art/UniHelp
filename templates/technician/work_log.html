@@ -153,7 +153,11 @@
                                 {% elif session.end_time %}
                                     --
                                 {% else %}
-                                    <span class="text-green-600 font-mono" id="live-timer-{{ session.worklogid }}">Loading...</span>
+                                    <span class="text-green-600 font-mono" 
+                                          id="live-timer-{{ session.worklogid }}"
+                                          data-start-time="{{ session.start_time }}">
+                                        Loading...
+                                    </span>
                                 {% endif %}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -215,19 +219,26 @@ function updateElapsedTime(startTime) {
 // Update all live timers on page
 function updateAllLiveTimers() {
     document.querySelectorAll('[id^="live-timer-"]').forEach(el => {
-        const worklogId = el.id.replace('live-timer-', '');
-        // Find corresponding session data
-        const sessionRow = el.closest('tr');
-        const startTimeStr = sessionRow.querySelector('td:nth-child(4)').textContent.trim();
+        // Get the actual ISO start time from data attribute
+        const startTimeISO = el.getAttribute('data-start-time');
         
-        // Parse start time and convert to Date object
-        // Format should be like "09:30:00 AM"
-        const today = new Date().toDateString();
-        const startTime = new Date(today + ' ' + startTimeStr);
-        
-        if (!isNaN(startTime.getTime())) {
-            el.textContent = updateElapsedTime(startTime);
+        if (!startTimeISO) {
+            console.warn('No start time found for timer:', el.id);
+            return;
         }
+        
+        // Parse ISO format (e.g., "2026-03-15T09:30:00")
+        const startTime = new Date(startTimeISO);
+        
+        if (isNaN(startTime.getTime())) {
+            console.error('Invalid start time:', startTimeISO);
+            el.textContent = 'Invalid';
+            return;
+        }
+        
+        // Calculate and display elapsed time
+        const elapsed = updateElapsedTime(startTime);
+        el.textContent = elapsed;
     });
 }
 
