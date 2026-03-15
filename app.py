@@ -2997,19 +2997,76 @@ def view_technician_chat(live_chat_id):
         flash('Failed to load chat', 'error')
         return redirect(url_for('technician_dashboard'))
 
-
-# ==================== USER LIVE CHAT VIEW ====================
-
-@app.route('/user/live_chat/<int:live_chat_id>')
+@app.route('/admin/live_chats')
 @login_required
-def view_user_live_chat(live_chat_id):
-    """View live chat as user/admin"""
+@role_required(['admin'])
+def admin_live_chats():
+    """Admin view of all active live chats"""
     try:
         if not db.client:
             flash('Database connection not available', 'error')
-            return redirect(url_for('user_dashboard'))
+            return redirect(url_for('admin_dashboard'))
         
-        user_id = session.get('user_id')
+        # Get all active live chats
+        response = db.client.table('live_chat').select('*')\
+            .eq('status', 'active')\
+            .execute()
+        
+        live_chats = []
+        if response.data:
+            for chat in response.data:
+                chat_info = {
+                    'livechatid': chat['livechatid'],
+                    'sessionid': chat['sessionid'],
+                    'technicianid': chat['technicianid'],
+                    'started_at': chat.get('started_at'),
+                    'technician_name': 'Unknown',
+                    'user_name': 'Unknown',
+                    'user_email': '',
+                    'last_message': ''
+                }
+                
+                # Get technician name
+                tech_response = db.client.table('technician').select('name').eq('technicianid', chat['technicianid']).execute()
+                if tech_response.data and len(tech_response.data) > 0:
+                    chat_info['technician_name'] = tech_response.data[0]['name']
+                
+                # Get session and user info
+                session_response = db.client.table('chat_session').select('userid').eq('sessionid', chat['sessionid']).execute()
+                if session_response.data and len(session_response.data) > 0:
+                    user_id = session_response.data[0]['userid']
+                    
+                    # Get user details
+                    user_response = db.client.table('user').select('name, email').eq('userid', user_id).execute()
+                    if user_response.data and len(user_response.data) > 0:
+                        user_data = user_response.data[0]
+                        chat_info['user_name'] = user_data['name']
+                        chat_info['user_email'] = user_data['email']
+                    
+                    # Get last message
+                    msg_response = db.client.table('chat_message').select('message').eq('sessionid', chat['sessionid']).order('created_at', desc=True).limit(1).execute()
+                    if msg_response.data and len(msg_response.data) > 0:
+                        chat_info['last_message'] = msg_response.data[0]['message']
+                
+                live_chats.append(chat_info)
+        
+        return render_template('admin/live_chats.html', live_chats=live_chats)
+    
+    except Exception as e:
+        print(f"❌ Error loading admin live chats: {e}")
+        flash('Failed to load live chats', 'error')
+        return redirect(url_for('admin_dashboard'))
+
+
+@app.route('/admin/chat/<int:live_chat_id>')
+@login_required
+@role_required(['admin'])
+def admin_view_chat(live_chat_id):
+    """Admin view specific chat details and messages"""
+    try:
+        if not db.client:
+            flash('Database connection not available', 'error')
+            return redirect(url_for('admin_live_chats'))
         
         # Get live chat details
         response = db.client.table('live_chat').select('*')\
@@ -3018,34 +3075,41 @@ def view_user_live_chat(live_chat_id):
         
         if not response.data or len(response.data) == 0:
             flash('Live chat not found', 'error')
-            return redirect(url_for('user_dashboard'))
+            return redirect(url_for('admin_live_chats'))
         
         live_chat = response.data[0]
         
-        # Verify user is participant or admin
-        if live_chat['technicianid'] != user_id:
-            session_response = db.client.table('chat_session').select('userid')\
-                .eq('sessionid', live_chat['sessionid'])\
-                .execute()
-            
-            if not session_response.data or session_response.data[0]['userid'] != user_id:
-                if session.get('role') != 'admin':
-                    flash('Access denied', 'error')
-                    return redirect(url_for('user_dashboard'))
-        
-        # Get technician info
-        tech_response = db.client.table('user').select('name, email')\
-            .eq('userid', live_chat['technicianid'])\
+        # Get session and user info
+        session_response = db.client.table('chat_session').select('userid')\
+            .eq('sessionid', live_chat['sessionid'])\
             .execute()
         
+        user_name = 'Unknown'
+        user_email = ''
         technician_name = 'Unknown'
-        technician_email = ''
-        if tech_response.data and len(tech_response.data) > 0:
-            tech_data = tech_response.data[0]
-            technician_name = tech_data['name']
-            technician_email = tech_data['email']
         
-        # Get messages
+        if session_response.data and len(session_response.data) > 0:
+            user_id = session_response.data[0]['userid']
+            
+            # Get user details
+            user_response = db.client.table('user').select('name, email')\
+                .eq('userid', user_id)\
+                .execute()
+            
+            if user_response.data and len(user_response.data) > 0:
+                user_data = user_response.data[0]
+                user_name = user_data['name']
+                user_email = user_data['email']
+        
+        # Get technician name
+        tech_response = db.client.table('technician').select('name')\
+            .eq('technicianid', live_chat['technicianid'])\
+            .execute()
+        
+        if tech_response.data and len(tech_response.data) > 0:
+            technician_name = tech_response.data[0]['name']
+        
+        # Get chat messages
         msg_response = db.client.table('chat_message').select('*')\
             .eq('sessionid', live_chat['sessionid'])\
             .order('created_at', desc=False)\
@@ -3053,90 +3117,19 @@ def view_user_live_chat(live_chat_id):
         
         messages = msg_response.data if msg_response.data else []
         
-        return render_template('user/live_chat_view.html', 
+        return render_template('admin/chat_view.html', 
                              live_chat=live_chat,
                              messages=messages,
-                             technician_name=technician_name,
-                             technician_email=technician_email)
+                             user_name=user_name,
+                             user_email=user_email,
+                             technician_name=technician_name)
     
     except Exception as e:
-        print(f"❌ Error viewing user live chat: {e}")
+        print(f"❌ Error viewing admin chat: {e}")
         import traceback
         print(f"Traceback: {traceback.format_exc()}")
         flash('Failed to load chat', 'error')
-        return redirect(url_for('user_dashboard'))
-
-
-@app.route('/api/chat/messages/<int:session_id>')
-@login_required
-def get_chat_messages(session_id):
-    """Get all messages for a chat session"""
-    try:
-        if not db.client:
-            return jsonify({'success': False, 'error': 'Database connection not available'}), 500
-        
-        # Verify user has access to this session
-        session_response = db.client.table('chat_session').select('userid')\
-            .eq('sessionid', session_id)\
-            .execute()
-        
-        if not session_response.data:
-            return jsonify({'success': False, 'error': 'Session not found'}), 404
-        
-        session_user_id = session_response.data[0]['userid']
-        current_user_id = session.get('user_id')
-        
-        # Allow if user owns the session or is admin
-        if session_user_id != current_user_id and session.get('role') != 'admin':
-            return jsonify({'success': False, 'error': 'Access denied'}), 403
-        
-        # Get messages
-        msg_response = db.client.table('chat_message').select('*')\
-            .eq('sessionid', session_id)\
-            .order('created_at', desc=False)\
-            .execute()
-        
-        messages = msg_response.data if msg_response.data else []
-        
-        return jsonify({'success': True, 'messages': messages})
-    
-    except Exception as e:
-        print(f"❌ Error getting chat messages: {e}")
-        import traceback
-        print(f"Traceback: {traceback.format_exc()}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/api/chat/admin/send', methods=['POST'])
-@login_required
-@role_required(['admin', 'staff'])
-def admin_send_message():
-    """Admin/staff sends message in live chat"""
-    try:
-        if not db.client:
-            return jsonify({'success': False, 'error': 'Database connection not available'}), 500
-        
-        data = request.get_json()
-        session_id = data.get('session_id')
-        message = data.get('message', '').strip()
-        
-        if not message:
-            return jsonify({'success': False, 'error': 'Empty message'}), 400
-        
-        # Insert message as admin
-        db.client.table('chat_message').insert({
-            'sessionid': session_id,
-            'sender': 'admin',
-            'message': message
-        }).execute()
-        
-        return jsonify({'success': True, 'message': 'Message sent'})
-    
-    except Exception as e:
-        print(f"❌ Error sending admin message: {e}")
-        import traceback
-        print(f"Traceback: {traceback.format_exc()}")
-        return jsonify({'success': False, 'error': f'Failed to send message: {str(e)}'}), 500
+        return redirect(url_for('admin_live_chats'))
 
 
 @app.route('/chatbot')
