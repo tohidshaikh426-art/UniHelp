@@ -2005,10 +2005,18 @@ def end_work_session(worklog_id):
                 'updatedat': datetime.now().isoformat()
             }).eq('ticketid', work_session['ticketid']).execute()
         
+        # Format hours worked for display
+        total_seconds = int(hours_worked * 3600)
+        hrs = total_seconds // 3600
+        mins = (total_seconds % 3600) // 60
+        secs = total_seconds % 60
+        hours_display = f"{hrs:02d}:{mins:02d}:{secs:02d}"
+        
         return jsonify({
             'success': True,
             'hours_worked': round(hours_worked, 2),
-            'message': f'Work session ended. {round(hours_worked, 2)} hours logged.'
+            'hours_worked_display': hours_display,
+            'message': f'Work session ended. {hours_display} logged.'
         })
     
     except Exception as e:
@@ -2097,6 +2105,43 @@ def technician_work_log():
                 monthly_stats['chat_hours'] += total_hours
             elif work_type == 'maintenance':
                 monthly_stats['maintenance_hours'] += total_hours
+    
+    # Helper function to format time in 12-hour format
+    def format_time_12hr(iso_datetime):
+        if not iso_datetime:
+            return '--'
+        try:
+            dt = datetime.fromisoformat(iso_datetime.replace('Z', '+00:00'))
+            return dt.strftime('%I:%M:%S %p')  # 12-hour format with AM/PM
+        except:
+            return iso_datetime
+    
+    # Helper function to format duration from hours
+    def format_duration(hours):
+        if not hours:
+            return '--'
+        try:
+            total_seconds = int(float(hours) * 3600)
+            hrs = total_seconds // 3600
+            mins = (total_seconds % 3600) // 60
+            secs = total_seconds % 60
+            return f"{hrs:02d}:{mins:02d}:{secs:02d}"
+        except:
+            return '--'
+    
+    # Make helpers available to template
+    import jinja2
+    @jinja2.pass_context
+    def format_time_12hr_ctx(ctx, iso_datetime):
+        return format_time_12hr(iso_datetime)
+    
+    @jinja2.pass_context
+    def format_duration_ctx(ctx, hours):
+        return format_duration(hours)
+    
+    # Add to template globals
+    app.jinja_env.globals.update(format_time_12hr=format_time_12hr)
+    app.jinja_env.globals.update(format_duration=format_duration)
     
     return render_template('technician/work_log.html', 
                          work_sessions=work_sessions,
