@@ -1161,7 +1161,8 @@ def send_chat_message():
             print(f"❌ Session user mismatch - Session owner: {chat_session['userid']}, Current user: {user_id}")
             return jsonify({'success': False, 'error': 'Invalid session'}), 403
         
-        if chat_session['status'] != 'active':
+        # Allow messages in both 'active' (normal chat) and 'live_chat' (technician chat) statuses
+        if chat_session['status'] not in ['active', 'live_chat']:
             print(f"❌ Session not active - Status: {chat_session['status']}")
             return jsonify({'success': False, 'error': 'Session not active'}), 400
         
