@@ -3278,65 +3278,105 @@ def get_new_chats():
     
     print(f"🔍 Checking chats for technician ID: {tech_id}")
     
-    # Get active live chats for this technician
-    response = db.client.table('live_chat').select('*')\
-        .eq('technicianid', tech_id)\
-        .eq('status', 'active')\
-        .execute()
-    
-    print(f"📊 Found {len(response.data) if response.data else 0} active chats")
-    
-    new_chats = []
-    if response.data:
-        for chat in response.data:
-            print(f"💬 Chat found: {chat}")
-            # Get session and user info
-            session_response = db.client.table('chat_session').select('userid, created_at').eq('sessionid', chat['sessionid']).execute()
-            
-            chat_info = {
-                'livechatid': chat['livechatid'],
-                'sessionid': chat['sessionid'],
-                'started_at': chat.get('started_at'),
-                'name': 'Unknown',
-                'role': 'Unknown',
-                'last_message': '',
-                'message_count': 0
+    try:
+        if not db.client:
+            return jsonify({
+                'success': False,
+                'error': 'Database connection not available',
+                'new_chats': [],
+                'count': 0
+            }), 500
+        
+        # Get active live chats for this technician
+        response = db.client.table('live_chat').select('*')\
+            .eq('technicianid', tech_id)\
+            .eq('status', 'active')\
+            .execute()
+        
+        print(f"📊 Found {len(response.data) if response.data else 0} active chats")
+        
+        new_chats = []
+        if response.data:
+            for chat in response.data:
+                print(f"💬 Chat found: {chat}")
+                
+                chat_info = {
+                    'livechatid': chat['livechatid'],
+                    'sessionid': chat['sessionid'],
+                    'started_at': chat.get('started_at'),
+                    'name': 'Unknown',
+                    'role': 'Unknown',
+                    'last_message': '',
+                    'message_count': 0
+                }
+                
+                try:
+                    # Get session and user info
+                    session_response = db.client.table('chat_session').select('userid, created_at')\
+                        .eq('sessionid', chat['sessionid'])\
+                        .execute()
+                    
+                    if session_response.data and len(session_response.data) > 0:
+                        session_data = session_response.data[0]
+                        chat_info['created_at'] = session_data.get('created_at')
+                        
+                        # Get user info
+                        user_response = db.client.table('user').select('name, role')\
+                            .eq('userid', session_data['userid'])\
+                            .execute()
+                        if user_response.data and len(user_response.data) > 0:
+                            user_data = user_response.data[0]
+                            chat_info['name'] = user_data['name']
+                            chat_info['role'] = user_data['role']
+                        
+                        # Get last message
+                        msg_response = db.client.table('chat_message').select('message')\
+                            .eq('sessionid', chat['sessionid'])\
+                            .order('created_at', desc=True)\
+                            .limit(1)\
+                            .execute()
+                        if msg_response.data and len(msg_response.data) > 0:
+                            chat_info['last_message'] = msg_response.data[0]['message']
+                        
+                        # Get total message count
+                        all_msgs_response = db.client.table('chat_message').select('*', count='exact')\
+                            .eq('sessionid', chat['sessionid'])\
+                            .execute()
+                        chat_info['message_count'] = all_msgs_response.count if hasattr(all_msgs_response, 'count') else 0
+                
+                except Exception as inner_error:
+                    print(f"⚠️ Error fetching details for chat {chat['livechatid']}: {inner_error}")
+                    # Continue with other chats even if one fails
+                    continue
+                
+                new_chats.append(chat_info)
+        
+        result = {
+            'success': True,
+            'new_chats': new_chats,
+            'count': len(new_chats),
+            'has_new_chat': len(new_chats) > 0,
+            'debug': {
+                'technician_id': tech_id,
+                'total_found': len(response.data) if response.data else 0
             }
-            
-            if session_response.data and len(session_response.data) > 0:
-                session_data = session_response.data[0]
-                chat_info['created_at'] = session_data.get('created_at')
-                
-                # Get user info
-                user_response = db.client.table('user').select('name, role').eq('userid', session_data['userid']).execute()
-                if user_response.data and len(user_response.data) > 0:
-                    user_data = user_response.data[0]
-                    chat_info['name'] = user_data['name']
-                    chat_info['role'] = user_data['role']
-                
-                # Get last message
-                msg_response = db.client.table('chat_message').select('message').eq('sessionid', chat['sessionid']).order('created_at', desc=True).limit(1).execute()
-                if msg_response.data and len(msg_response.data) > 0:
-                    chat_info['last_message'] = msg_response.data[0]['message']
-                
-                # Get total message count
-                all_msgs_response = db.client.table('chat_message').select('*', count='exact').eq('sessionid', chat['sessionid']).execute()
-                chat_info['message_count'] = all_msgs_response.count if hasattr(all_msgs_response, 'count') else 0
-            
-            new_chats.append(chat_info)
-    
-    result = {
-        'success': True,
-        'new_chats': new_chats,
-        'count': len(new_chats),
-        'has_new_chat': len(new_chats) > 0,
-        'debug': {
-            'technician_id': tech_id,
-            'total_found': len(response.data) if response.data else 0
         }
-    }
+        
+        print(f"✅ Returning: {result}")
+        return jsonify(result)
     
-    print(f"✅ Returning: {result}")
+    except Exception as e:
+        print(f"❌ Error in get_new_chats: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        # Return empty list instead of crashing
+        return jsonify({
+            'success': True,
+            'new_chats': [],
+            'count': 0,
+            'has_new_chat': False,
+            'error': 'Failed to fetch chats'
+        }), 200
     return jsonify(result)
 
 
