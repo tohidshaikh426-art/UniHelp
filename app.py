@@ -2084,13 +2084,13 @@ def technician_work_log():
         'maintenance_hours': 0
     }
     
-    for session in work_sessions:
-        if session.get('end_time') and session.get('hours_worked'):
+    for work_session in work_sessions:
+        if work_session.get('end_time') and work_session.get('hours_worked'):
             monthly_stats['total_sessions'] += 1
-            total_hours = session.get('hours_worked', 0)
+            total_hours = work_session.get('hours_worked', 0)
             monthly_stats['total_hours'] += total_hours
             
-            work_type = session.get('work_type', '')
+            work_type = work_session.get('work_type', '')
             if work_type == 'ticket_resolution':
                 monthly_stats['ticket_hours'] += total_hours
             elif work_type == 'live_chat':
