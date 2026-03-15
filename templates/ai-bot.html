@@ -444,15 +444,24 @@ function escapeHtml(text) {
 let lastMessageTime = null;
 
 async function pollForNewMessages() {
-    if (!currentSessionId || !liveChatActive) return;
+    if (!currentSessionId || !liveChatActive) {
+        console.log('❌ Polling skipped:', { currentSessionId, liveChatActive });
+        return;
+    }
+    
+    console.log('🔍 Polling for messages...', currentSessionId);
     
     try {
         const response = await fetch(`/api/chat/session/${currentSessionId}/messages`);
         const data = await response.json();
         
+        console.log('📊 Poll response:', data);
+        
         if (data.success && data.messages && data.messages.length > 0) {
             const container = document.getElementById('chatMessages');
             const existingMessages = container.querySelectorAll('.technician-message');
+            
+            console.log(`Found ${data.messages.length} messages, ${existingMessages.length} existing in UI`);
             
             data.messages.forEach(msg => {
                 // Check if we already have this message
@@ -461,12 +470,19 @@ async function pollForNewMessages() {
                 );
                 
                 if (!exists && msg.sender === 'technician') {
+                    console.log('✅ Adding technician message:', msg.message);
                     addTechnicianMessageToChat(msg.message, msg.chat_messageid);
+                } else if (exists) {
+                    console.log('⏭️ Skipping existing message');
+                } else {
+                    console.log('Skipping non-technician message:', msg.sender);
                 }
             });
+        } else {
+            console.log('No messages yet or not success');
         }
     } catch (error) {
-        console.error('Error polling for messages:', error);
+        console.error('❌ Error polling for messages:', error);
     }
 }
 
