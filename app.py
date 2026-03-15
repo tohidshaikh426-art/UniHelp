@@ -2367,7 +2367,7 @@ def get_online_technicians():
 @app.route('/api/chat/end_live_chat/<int:live_chat_id>', methods=['POST'])
 @login_required
 def end_live_chat(live_chat_id):
-    """End live chat session"""
+    """End live chat session (technician version)"""
     try:
         if not db.client:
             return jsonify({'success': False, 'error': 'Database connection not available'}), 500
@@ -2407,6 +2407,62 @@ def end_live_chat(live_chat_id):
         import traceback
         print(f"Traceback: {traceback.format_exc()}")
         return jsonify({'success': False, 'error': f'Failed to end live chat: {str(e)}'}), 500
+
+@app.route('/api/chat/end_session', methods=['POST'])
+@login_required
+def end_chat_session():
+    """End chat session (user version - ends by session_id)"""
+    try:
+        if not db.client:
+            return jsonify({'success': False, 'error': 'Database connection not available'}), 500
+        
+        data = request.get_json()
+        session_id = data.get('session_id')
+        
+        if not session_id:
+            return jsonify({'success': False, 'error': 'Session ID required'}), 400
+        
+        # Verify user owns this session
+        chat_session = db.get_chat_session_by_id(session_id)
+        if not chat_session or chat_session['userid'] != session.get('user_id'):
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+        
+        # Check if there's an active live chat
+        live_chat_response = db.client.table('live_chat').select('*')\
+            .eq('sessionid', session_id)\
+            .eq('status', 'active')\
+            .execute()
+        
+        if live_chat_response.data and len(live_chat_response.data) > 0:
+            live_chat = live_chat_response.data[0]
+            
+            # Update live_chat status to ended
+            db.client.table('live_chat').update({
+                'status': 'ended',
+                'ended_at': datetime.now().isoformat()
+            }).eq('livechatid', live_chat['livechatid']).execute()
+        
+        # Update chat_session status to resolved
+        db.client.table('chat_session').update({
+            'status': 'resolved',
+            'resolved_at': datetime.now().isoformat()
+        }).eq('sessionid', session_id).execute()
+        
+        # Insert system message
+        db.client.table('chat_message').insert({
+            'sessionid': session_id,
+            'sender': 'bot',
+            'message': '✅ Live chat session ended by user. Thank you for using UniHelp!',
+            'intent': 'system'
+        }).execute()
+        
+        return jsonify({'success': True, 'message': 'Chat session ended successfully'})
+    
+    except Exception as e:
+        print(f"❌ Error ending chat session: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        return jsonify({'success': False, 'error': f'Failed to end chat session: {str(e)}'}), 500
 
 @app.route('/technician/live_chats')
 @login_required
