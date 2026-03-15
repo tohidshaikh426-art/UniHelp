@@ -147,7 +147,7 @@ class DatabaseClient:
         response = self.client.table('comment').select('''
             *,
             user!comment_userid_fkey(name, email, role)
-        ''').eq('ticketid', ticket_id).order('created_at', desc=False).execute()
+        ''').eq('ticketid', ticket_id).order('createdat', desc=False).execute()
         return response.data
     
     def create_comment(self, comment_data):
