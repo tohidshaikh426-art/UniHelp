@@ -2494,14 +2494,15 @@ def technician_send_message():
 @app.route('/api/chat/session/<session_id>/messages', methods=['GET'])
 @login_required
 def get_session_messages(session_id):
-    """Get all messages for a chat session (for polling)"""
+    """Get technician messages for a chat session (for polling)"""
     try:
         if not db.client:
             return jsonify({'success': False, 'error': 'Database connection not available'}), 500
         
-        # Get messages from this session
+        # Get only technician messages from this session
         response = db.client.table('chat_message').select('*')\
             .eq('sessionid', session_id)\
+            .eq('sender', 'technician')\
             .order('created_at', desc=False)\
             .execute()
         
