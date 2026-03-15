@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+
+{% block title %}Chat with Technician - UniHelp{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-6">
+    <!-- Back Button -->
+    <a href="{{ url_for('user_dashboard') }}" 
+       class="inline-flex items-center text-gray-600 hover:text-gray-900 transition">
+        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+        Back to Dashboard
+    </a>
+
+    <!-- Chat Header -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">Live Chat with Technician</h1>
+                <p class="text-gray-600 mt-1">
+                    <span class="font-semibold">{{ technician_name }}</span>
+                    <span class="mx-2">•</span>
+                    <span class="px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full flex items-center inline-flex">
+                        <span class="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
+                        {{ live_chat.status }}
+                    </span>
+                </p>
+            </div>
+            <button onclick="endChat()" 
+                    class="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 transition flex items-center space-x-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                <span>End Chat</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Messages Container -->
+    <div class="bg-white rounded-lg shadow">
+        <div id="messagesContainer" class="p-6 space-y-4 max-h-[600px] overflow-y-auto">
+            {% if messages %}
+                {% for message in messages %}
+                <div class="flex {% if message.sender == 'user' or message.sender == 'admin' %}justify-start{% else %}justify-end{% endif %}">
+                    <div class="max-w-[70%]">
+                        <div class="rounded-lg px-4 py-3 {% if message.sender == 'user' or message.sender == 'admin' %}bg-gray-100{% else %}bg-blue-500 text-white{% endif %}">
+                            <p class="text-sm">{{ message.message }}</p>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">{{ message.created_at[:16] if message.created_at else '' }}</p>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="text-center text-gray-500 py-12">
+                    <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
+                    <p>No messages yet. The technician will respond shortly!</p>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Message Input - User can only send if chat is active -->
+        {% if live_chat.status == 'active' %}
+        <div class="p-4 border-t border-gray-200">
+            <form id="messageForm" class="flex space-x-3">
+                <input type="text" 
+                       id="messageInput" 
+                       placeholder="Type your message..."
+                       class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                       autocomplete="off">
+                <button type="submit" 
+                        class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition flex items-center space-x-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                    </svg>
+                    <span>Send</span>
+                </button>
+            </form>
+        </div>
+        {% else %}
+        <div class="p-4 border-t border-gray-200 bg-gray-50 text-center text-gray-600">
+            <p>This chat session has ended. Thank you for using UniHelp!</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+const sessionId = '{{ live_chat.sessionid }}';
+const userId = '{{ session.get("user_id") }}';
+const userRole = '{{ session.get("role") }}';
+
+// Auto-scroll to bottom
+function scrollToBottom() {
+    const container = document.getElementById('messagesContainer');
+    container.scrollTop = container.scrollHeight;
+}
+
+// Initial scroll
+scrollToBottom();
+
+// Send message (only for admin/staff, not regular students)
+document.getElementById('messageForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const input = document.getElementById('messageInput');
+    const message = input.value.trim();
+    
+    if (!message) return;
+    
+    try {
+        // Use different endpoint based on role
+        const endpoint = userRole === 'admin' || userRole === 'staff' 
+            ? '/api/chat/admin/send' 
+            : '/api/chat/message';
+        
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                session_id: sessionId,
+                message: message
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Add message to UI
+            addMessage(message, userRole);
+            input.value = '';
+            
+            // Scroll to bottom
+            setTimeout(scrollToBottom, 100);
+        } else {
+            alert('Failed to send message: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error sending message:', error);
+        alert('Failed to send message. Please check your connection.');
+    }
+});
+
+// Add message to UI
+function addMessage(text, sender) {
+    const container = document.getElementById('messagesContainer');
+    const now = new Date().toISOString().slice(0, 16);
+    
+    const div = document.createElement('div');
+    div.className = 'flex ' + (sender === 'user' || sender === 'admin' ? 'justify-start' : 'justify-end');
+    div.innerHTML = `
+        <div class="max-w-[70%]">
+            <div class="rounded-lg px-4 py-3 ${sender === 'user' || sender === 'admin' ? 'bg-gray-100' : 'bg-blue-500 text-white'}">
+                <p class="text-sm">${text}</p>
+            </div>
+            <p class="text-xs text-gray-500 mt-1">${now}</p>
+        </div>
+    `;
+    
+    container.appendChild(div);
+    scrollToBottom();
+}
+
+// End chat
+async function endChat() {
+    if (!confirm('Are you sure you want to end this chat?')) return;
+    
+    try {
+        const response = await fetch(`/api/chat/end_live_chat/{{ live_chat.livechatid }}`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('Chat ended successfully!');
+            window.location.href = '{{ url_for("user_dashboard") }}';
+        } else {
+            alert('Failed to end chat: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error ending chat:', error);
+        alert('An error occurred while ending the chat.');
+    }
+}
+
+// Poll for new messages every 3 seconds
+let lastMessageCount = {{ messages|length if messages else 0 }};
+
+setInterval(async () => {
+    try {
+        const response = await fetch('/api/chat/messages/' + sessionId);
+        const data = await response.json();
+        
+        if (data.success && data.messages) {
+            const currentMessages = document.querySelectorAll('#messagesContainer .flex');
+            if (data.messages.length > lastMessageCount) {
+                // Reload to show new messages
+                location.reload();
+            }
+            lastMessageCount = data.messages.length;
+        }
+    } catch (error) {
+        console.error('Error polling for messages:', error);
+    }
+}, 3000);
+</script>
+{% endblock %}
