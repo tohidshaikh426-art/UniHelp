@@ -203,17 +203,36 @@ document.getElementById('chatForm').addEventListener('submit', async (e) => {
     
     if (!message || !selectedTechId) return;
     
-    // Add message to chat
+    // Add message to chat UI immediately
     addMessage('admin', message);
     document.getElementById('messageInput').value = '';
     
-    // In a real app, you would send this to the server
-    // For now, we'll just show it in the chat
-    
-    // Simulate technician typing
-    setTimeout(() => {
-        addMessage('technician', 'Message received! I will help you shortly.');
-    }, 1000);
+    // Send message to server
+    try {
+        const response = await fetch('/admin/send_direct_message', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                technician_id: selectedTechId,
+                message: message
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            console.log('✅ Message sent to technician:', data.message);
+            // Show confirmation in chat
+            setTimeout(() => {
+                addMessage('system', '✓ Message delivered to technician');
+            }, 500);
+        } else {
+            alert('Failed to send message: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error sending message:', error);
+        alert('Failed to send message. Please check your connection.');
+    }
 });
 
 // Close modal when clicking outside

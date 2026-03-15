@@ -1510,7 +1510,7 @@ def get_chat_history(session_id):
 @login_required
 @role_required(['admin'])
 def admin_send_direct_message():
-    """Admin sends direct message to technician WITHOUT chatbot escalation"""
+    """Admin sends direct message to technician - creates live chat session"""
     
     try:
         if not db.client:
@@ -1530,18 +1530,46 @@ def admin_send_direct_message():
         if not tech or tech['role'] != 'technician' or not tech.get('isapproved'):
             return jsonify({'success': False, 'error': 'Technician not found'}), 404
         
-        # Create a special admin message (not through chatbot)
-        # Store in chat_message table with sessionid as None or a special system session
-        db.client.table('chat_message').insert({
-            'sessionid': None,  # Direct message, not tied to a session
+        admin_id = session.get('user_id')
+        admin_name = session.get('name')
+        
+        # Create a chat session for this conversation
+        chat_session = db.create_chat_session({
+            'userid': admin_id,
+            'status': 'active',
+            'source': 'admin_direct_message'
+        })
+        
+        session_id = chat_session['sessionid']
+        
+        # Create live chat linking admin and technician
+        live_chat = db.create_live_chat({
+            'sessionid': session_id,
+            'technicianid': technician_id,
+            'status': 'active'
+        })
+        
+        # Send initial system message
+        db.create_chat_message({
+            'sessionid': session_id,
+            'sender': 'system',
+            'message': f'📢 Direct message from Admin {admin_name}',
+            'intent': 'system'
+        })
+        
+        # Send admin's message
+        db.create_chat_message({
+            'sessionid': session_id,
             'sender': 'admin',
-            'message': f"[ADMIN] {session.get('name')}: {message}",
+            'message': message,
             'intent': 'direct_message'
-        }).execute()
+        })
         
         return jsonify({
             'success': True,
-            'message': f'Message sent to {tech["name"]}'
+            'message': f'Message sent to {tech["name"]}',
+            'session_id': session_id,
+            'live_chat_id': live_chat['livechatid']
         })
     
     except Exception as e:
