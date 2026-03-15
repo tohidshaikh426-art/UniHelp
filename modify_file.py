@@ -2,6 +2,9 @@
 """
 Universal File Modifier - Reliable alternative to search_replace
 Usage: python modify_file.py
+
+This tool provides a simple and reliable way to modify files without complex pattern matching.
+It uses exact string matching and provides clear feedback on what was changed.
 """
 
 import os
@@ -36,13 +39,21 @@ def write_file(filepath, content):
         return False
 
 def replace_text(content, old, new, description=""):
-    """Replace text in content"""
-    if old in content:
+    """Replace text in content - EXACT MATCH ONLY"""
+    count = content.count(old)
+    
+    if count == 0:
+        print(f"⚠️  Text NOT found: {old[:50]}...")
+        print(f"   Tip: Make sure the text matches EXACTLY (including whitespace and indentation)")
+        return content
+    elif count > 1:
+        print(f"⚠️  Text found {count} times. Using replace_all for multiple replacements.")
         content = content.replace(old, new)
-        print(f"✅ Replaced: {description or old[:50]}")
+        print(f"✅ Replaced {count} occurrences: {description or old[:50]}")
         return content
     else:
-        print(f"⚠️  Text not found: {old[:50]}...")
+        content = content.replace(old, new)
+        print(f"✅ Replaced: {description or old[:50]}")
         return content
 
 def insert_after_marker(content, marker, text_to_insert):
@@ -68,6 +79,34 @@ def insert_before_marker(content, marker, text_to_insert):
         print(f"⚠️  Marker not found: {marker[:50]}")
         return content
 
+def replace_all(content, old, new, description=""):
+    """Replace ALL occurrences of text in content"""
+    count = content.count(old)
+    
+    if count == 0:
+        print(f"⚠️  Text NOT found: {old[:50]}...")
+        return content
+    
+    content = content.replace(old, new)
+    print(f"✅ Replaced all {count} occurrences: {description or old[:50]}")
+    return content
+
+def find_and_replace_regex(content, pattern, new, description=""):
+    """Find and replace using regex pattern (for advanced users)"""
+    import re
+    try:
+        matches = re.findall(pattern, content, re.MULTILINE)
+        if not matches:
+            print(f"⚠️  Pattern NOT found: {pattern[:50]}...")
+            return content
+        
+        content = re.sub(pattern, new, content, flags=re.MULTILINE)
+        print(f"✅ Replaced {len(matches)} matches: {description or pattern[:50]}")
+        return content
+    except re.error as e:
+        print(f"❌ Invalid regex pattern: {e}")
+        return content
+
 # ============================================================================
 # EXAMPLE USAGE - Customize this section for your needs
 # ============================================================================
@@ -77,6 +116,14 @@ def main():
     
     print("=" * 60)
     print("File Modification Script")
+    print("=" * 60)
+    print("\n📖 HOW TO USE THIS TOOL:")
+    print("1. Read the file you want to modify")
+    print("2. Create backup (automatic)")
+    print("3. Use replace_text() for exact matches")
+    print("4. Use replace_all() for multiple occurrences")
+    print("5. Use insert_after/before_marker() for additions")
+    print("6. Write the modified content back")
     print("=" * 60)
     
     # Example 1: Simple text replacement

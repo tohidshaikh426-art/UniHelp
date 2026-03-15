@@ -705,63 +705,79 @@ def connect_technician():
     """Direct technician connection page for staff"""
     return render_template('user/connect_technician.html')
 
-def auto_assign_ticket(conn, ticket_id, category):
+def auto_assign_ticket(ticket_id, category):
     """
     Automatically assign ticket to the best available technician
     Returns technician info if assigned, None otherwise
     """
-    # Get available technicians with their current workload
-    technicians = conn.execute('''
-        SELECT u.userid, u.name, u.email,
-               COUNT(t.ticketid) as active_tickets,
-               p.status as online_status,
-               p.last_seen
-        FROM user u
-        LEFT JOIN ticket t ON u.userid = t.assignedto AND t.status IN ('Open', 'In Progress')
-        LEFT JOIN user_presence p ON u.userid = p.userid
-        WHERE u.role = 'technician' 
-        AND u.isapproved = 1
-        GROUP BY u.userid, u.name, u.email, p.status, p.last_seen
-        ORDER BY 
-            -- Prioritize online technicians
-            CASE WHEN p.status = 'online' THEN 1 ELSE 0 END DESC,
-            -- Then by workload (least busy first)
-            COUNT(t.ticketid) ASC,
-            -- Then by recent activity
-            p.last_seen DESC
-    ''').fetchall()
-    
-    # Find the best technician
-    best_technician = None
-    for tech in technicians:
-        # Skip if offline and has been offline for more than 1 hour
-        if tech['online_status'] != 'online':
-            if tech['last_seen']:
-                last_seen = datetime.fromisoformat(tech['last_seen'])
-                if (datetime.now() - last_seen).total_seconds() > 3600:  # 1 hour
+    try:
+        # Get all technicians
+        response = db.client.table('user').select('*').eq('role', 'technician').eq('isapproved', True).execute()
+        technicians = response.data
+        
+        # Get active tickets count for each technician
+        tech_workload = {}
+        for tech in technicians:
+            active_tickets = db.client.table('ticket').select('*').eq('assignedto', tech['userid']).in_('status', ['Open', 'In Progress']).execute()
+            tech_workload[tech['userid']] = len(active_tickets.data)
+        
+        # Get presence info
+        response = db.client.table('user_presence').select('*').in_('userid', [tech['userid'] for tech in technicians]).execute()
+        presence_map = {p['userid']: p for p in response.data}
+        
+        # Sort technicians by availability
+        best_technician = None
+        now = datetime.now()
+        
+        for tech in technicians:
+            tech_id = tech['userid']
+            presence = presence_map.get(tech_id, {})
+            online_status = presence.get('status', 'offline')
+            last_seen = presence.get('last_seen')
+            
+            # Skip if offline and has been offline for more than 1 hour
+            if online_status != 'online':
+                if last_seen:
+                    try:
+                        last_seen_dt = datetime.fromisoformat(last_seen.replace('Z', '+00:00'))
+                        if (now - last_seen_dt).total_seconds() > 3600:  # 1 hour
+                            continue
+                    except:
+                        continue
+                else:
                     continue
-            else:
-                continue
+            
+            # Check if technician has capacity (max 5 active tickets)
+            if tech_workload.get(tech_id, 0) < 5:
+                best_technician = {
+                    'userid': tech_id,
+                    'name': tech['name'],
+                    'email': tech['email'],
+                    'active_tickets': tech_workload.get(tech_id, 0),
+                    'online_status': online_status
+                }
+                break
         
-        # Check if technician has capacity (max 5 active tickets)
-        if tech['active_tickets'] < 5:
-            best_technician = tech
-            break
-    
-    # Assign ticket if we found a suitable technician
-    if best_technician:
-        conn.execute('''
-            UPDATE ticket 
-            SET assignedto = ?, status = 'In Progress', updatedat = CURRENT_TIMESTAMP
-            WHERE ticketid = ?
-        ''', (best_technician['userid'], ticket_id))
-        
-        # Log the assignment
-        print(f"Auto-assigned ticket {ticket_id} to {best_technician['name']} (workload: {best_technician['active_tickets']})")
-        
-        return best_technician
-    
-    return None
+        # Assign ticket if we found a suitable technician
+        if best_technician:
+            db.update_ticket(ticket_id, {
+                'assignedto': best_technician['userid'],
+                'status': 'In Progress',
+                'updatedat': now.isoformat()
+            })
+            
+            # Log the assignment
+            print(f"Auto-assigned ticket {ticket_id} to {best_technician['name']} (workload: {best_technician['active_tickets']})")
+            return best_technician
+        else:
+            print(f"No available technician found for ticket {ticket_id}")
+            return None
+            
+    except Exception as e:
+        print(f"❌ Auto-assign failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 @app.route('/user/create_ticket', methods=['GET', 'POST'])
 @login_required
