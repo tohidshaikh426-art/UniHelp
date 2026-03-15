@@ -2502,7 +2502,7 @@ def get_session_messages(session_id):
         # Get messages from this session
         response = db.client.table('chat_message').select('*')\
             .eq('sessionid', session_id)\
-            .order('createdat', desc=False)\
+            .order('created_at', desc=False)\
             .execute()
         
         messages = response.data if response.data else []
