@@ -839,32 +839,66 @@ def create_ticket():
 @app.route('/user/view_ticket/<int:ticket_id>')
 @login_required
 def view_ticket(ticket_id):
-    # Get ticket details from Supabase
-    ticket = db.get_ticket_by_id(ticket_id)
-    
-    if not ticket:
-        flash('Ticket not found', 'error')
+    try:
+        # Get ticket details from Supabase
+        ticket = db.get_ticket_by_id(ticket_id)
+        
+        if not ticket:
+            flash('Ticket not found', 'error')
+            return redirect(url_for('dashboard'))
+        
+        # Authorization check
+        role = session.get('role')
+        user_id = session.get('user_id')
+        
+        # Ensure user_id is integer
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            flash('Invalid user ID', 'error')
+            return redirect(url_for('dashboard'))
+        
+        # Get ticket user IDs safely
+        ticket_user_id = ticket.get('userid')
+        ticket_assigned_to = ticket.get('assignedto')
+        
+        # Convert to integers if they exist
+        try:
+            ticket_user_id = int(ticket_user_id) if ticket_user_id is not None else None
+        except (ValueError, TypeError):
+            ticket_user_id = None
+            
+        try:
+            ticket_assigned_to = int(ticket_assigned_to) if ticket_assigned_to is not None else None
+        except (ValueError, TypeError):
+            ticket_assigned_to = None
+        
+        # Check authorization: Admin can view any ticket, others only their own or assigned tickets
+        is_admin = role in ['admin']
+        is_creator = ticket_user_id == user_id
+        is_assignee = ticket_assigned_to == user_id
+        
+        if not is_admin and not is_creator and not is_assignee:
+            flash('Access denied', 'error')
+            return redirect(url_for('dashboard'))
+        
+        # NEW: Only fetch comments for staff, technicians, and admin (NOT students)
+        comments = []
+        can_comment = role in ['admin', 'technician', 'staff']
+        
+        if can_comment:
+            comments = db.get_comments_by_ticket(ticket_id)
+        
+        return render_template('view_ticket.html', 
+                             ticket=ticket, 
+                             comments=comments,
+                             can_comment=can_comment)
+    except Exception as e:
+        print(f"❌ Error viewing ticket {ticket_id}: {e}")
+        import traceback
+        traceback.print_exc()
+        flash('Error loading ticket details', 'error')
         return redirect(url_for('dashboard'))
-    
-    # Authorization check
-    role = session.get('role')
-    user_id = session.get('user_id')
-    
-    if role not in ['admin'] and ticket['userid'] != user_id and ticket['assignedto'] != user_id:
-        flash('Access denied', 'error')
-        return redirect(url_for('dashboard'))
-    
-    # NEW: Only fetch comments for staff, technicians, and admin (NOT students)
-    comments = []
-    can_comment = role in ['admin', 'technician', 'staff']
-    
-    if can_comment:
-        comments = db.get_comments_by_ticket(ticket_id)
-    
-    return render_template('view_ticket.html', 
-                         ticket=ticket, 
-                         comments=comments,
-                         can_comment=can_comment)
 
 @app.route('/ticket/<int:ticket_id>/comment', methods=['POST'])
 @login_required
@@ -890,20 +924,53 @@ def add_comment(ticket_id):
     role = session.get('role')
     user_id = session.get('user_id')
     
+    # Ensure user_id is integer
+    try:
+        user_id = int(user_id)
+    except (ValueError, TypeError):
+        flash('Invalid user ID', 'error')
+        return redirect(url_for('view_ticket', ticket_id=ticket_id))
+    
+    # Get ticket user IDs safely
+    ticket_user_id = ticket.get('userid')
+    ticket_assigned_to = ticket.get('assignedto')
+    
+    # Convert to integers if they exist
+    try:
+        ticket_user_id = int(ticket_user_id) if ticket_user_id is not None else None
+    except (ValueError, TypeError):
+        ticket_user_id = None
+        
+    try:
+        ticket_assigned_to = int(ticket_assigned_to) if ticket_assigned_to is not None else None
+    except (ValueError, TypeError):
+        ticket_assigned_to = None
+    
     # Authorization: Admin can comment on any ticket, others only on their own or assigned tickets
-    if role not in ['admin'] and ticket['userid'] != user_id and ticket['assignedto'] != user_id:
+    is_admin = role in ['admin']
+    is_creator = ticket_user_id == user_id
+    is_assignee = ticket_assigned_to == user_id
+    
+    if not is_admin and not is_creator and not is_assignee:
         flash('Access denied', 'error')
         return redirect(url_for('dashboard'))
     
     # Add comment using Supabase
-    db.create_comment({
-        'content': content,
-        'ticketid': ticket_id,
-        'userid': user_id
-    })
-    
-    flash('Comment added successfully', 'success')
-    return redirect(url_for('view_ticket', ticket_id=ticket_id))
+    try:
+        db.create_comment({
+            'content': content,
+            'ticketid': ticket_id,
+            'userid': user_id
+        })
+        
+        flash('Comment added successfully', 'success')
+        return redirect(url_for('view_ticket', ticket_id=ticket_id))
+    except Exception as e:
+        print(f"❌ Error creating comment: {e}")
+        import traceback
+        traceback.print_exc()
+        flash('Error adding comment', 'error')
+        return redirect(url_for('view_ticket', ticket_id=ticket_id))
 
 # ==================== PROFILE & SETTINGS ====================
 
