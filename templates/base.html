@@ -501,6 +501,9 @@
                     ? formatDuration(session.hours_worked)
                     : '--';
                 
+                // Capitalize work type for display
+                const workTypeDisplay = session.work_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                
                 html += `
                     <tr class="hover:bg-gray-50">
                         <td class="px-4 py-3 text-sm text-gray-900">${dateStr}</td>
@@ -510,7 +513,7 @@
                                   session.work_type === 'live_chat' ? 'bg-green-100 text-green-800' :
                                   session.work_type === 'maintenance' ? 'bg-purple-100 text-purple-800' :
                                   'bg-gray-100 text-gray-800'}">
-                                ${workTypeIcons[session.work_type] || '❓'} ${session.work_type.replace('_', ' ').title()}
+                                ${workTypeIcons[session.work_type] || '❓'} ${workTypeDisplay}
                             </span>
                         </td>
                         <td class="px-4 py-3 text-sm text-gray-900">
