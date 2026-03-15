@@ -1,0 +1,132 @@
+#!/usr/bin/env python3
+"""
+Universal File Modifier - Reliable alternative to search_replace
+Usage: python modify_file.py
+"""
+
+import os
+import shutil
+from datetime import datetime
+
+def backup_file(filepath):
+    """Create a backup of the file"""
+    if os.path.exists(filepath):
+        backup_path = f"{filepath}.backup"
+        shutil.copy2(filepath, backup_path)
+        print(f"✅ Created backup: {backup_path}")
+
+def read_file(filepath):
+    """Read file content"""
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            return f.read()
+    except FileNotFoundError:
+        print(f"❌ File not found: {filepath}")
+        return None
+
+def write_file(filepath, content):
+    """Write content to file"""
+    try:
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(content)
+        print(f"✅ Saved: {filepath}")
+        return True
+    except Exception as e:
+        print(f"❌ Error writing file: {e}")
+        return False
+
+def replace_text(content, old, new, description=""):
+    """Replace text in content"""
+    if old in content:
+        content = content.replace(old, new)
+        print(f"✅ Replaced: {description or old[:50]}")
+        return content
+    else:
+        print(f"⚠️  Text not found: {old[:50]}...")
+        return content
+
+def insert_after_marker(content, marker, text_to_insert):
+    """Insert text after a specific marker string"""
+    pos = content.find(marker)
+    if pos != -1:
+        insert_pos = pos + len(marker)
+        content = content[:insert_pos] + "\n" + text_to_insert + content[insert_pos:]
+        print(f"✅ Inserted after marker: {marker[:50]}")
+        return content
+    else:
+        print(f"⚠️  Marker not found: {marker[:50]}")
+        return content
+
+def insert_before_marker(content, marker, text_to_insert):
+    """Insert text before a specific marker string"""
+    pos = content.find(marker)
+    if pos != -1:
+        content = content[:pos] + text_to_insert + "\n" + content[pos:]
+        print(f"✅ Inserted before marker: {marker[:50]}")
+        return content
+    else:
+        print(f"⚠️  Marker not found: {marker[:50]}")
+        return content
+
+# ============================================================================
+# EXAMPLE USAGE - Customize this section for your needs
+# ============================================================================
+
+def main():
+    """Main modification logic"""
+    
+    print("=" * 60)
+    print("File Modification Script")
+    print("=" * 60)
+    
+    # Example 1: Simple text replacement
+    print("\n📝 Example 1: Replace text in base.html")
+    filepath = 'templates/base.html'
+    content = read_file(filepath)
+    
+    if content:
+        # Backup first
+        backup_file(filepath)
+        
+        # Make changes
+        old_text = '''<a href="{{ url_for('admin_technicians') }}" 
+                                   class="text-gray-700 hover:bg-gray-100 hover:text-primary px-3 py-2 rounded-md text-sm font-medium transition">
+                                    💬 Chat with Technicians
+                                </a>'''
+        
+        new_text = '''<a href="{{ url_for('admin_technicians') }}" 
+                                   class="text-gray-700 hover:bg-gray-100 hover:text-primary px-3 py-2 rounded-md text-sm font-medium transition">
+                                    💬 Chat with Technicians
+                                </a>
+                                <a href="{{ url_for('admin_live_chats') }}" 
+                                   class="text-gray-700 hover:bg-gray-100 hover:text-primary px-3 py-2 rounded-md text-sm font-medium transition">
+                                    📱 Monitor Live Chats
+                                </a>'''
+        
+        content = replace_text(content, old_text, new_text, "Add live chats link")
+        write_file(filepath, content)
+    
+    # Example 2: Insert code at specific location
+    print("\n📝 Example 2: Insert routes in app.py")
+    filepath = 'app.py'
+    content = read_file(filepath)
+    
+    if content:
+        backup_file(filepath)
+        
+        # Find where to insert
+        marker = "@app.route('/chatbot')"
+        new_routes = """
+@app.route('/new/route')
+def new_route():
+    return 'New route!'
+"""
+        content = insert_before_marker(content, marker, new_routes)
+        write_file(filepath, content)
+    
+    print("\n" + "=" * 60)
+    print("✅ All modifications complete!")
+    print("=" * 60)
+
+if __name__ == '__main__':
+    main()
