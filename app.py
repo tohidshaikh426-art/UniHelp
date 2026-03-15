@@ -2491,6 +2491,30 @@ def technician_send_message():
         print(f"Traceback: {traceback.format_exc()}")
         return jsonify({'success': False, 'error': f'Failed to send message: {str(e)}'}), 500
 
+@app.route('/api/chat/session/<session_id>/messages', methods=['GET'])
+@login_required
+def get_session_messages(session_id):
+    """Get all messages for a chat session (for polling)"""
+    try:
+        if not db.client:
+            return jsonify({'success': False, 'error': 'Database connection not available'}), 500
+        
+        # Get messages from this session
+        response = db.client.table('chat_message').select('*')\
+            .eq('sessionid', session_id)\
+            .order('createdat', desc=False)\
+            .execute()
+        
+        messages = response.data if response.data else []
+        
+        return jsonify({'success': True, 'messages': messages})
+    
+    except Exception as e:
+        print(f"❌ Error fetching session messages: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        return jsonify({'success': False, 'error': f'Failed to fetch messages: {str(e)}'}), 500
+
 def generate_bot_response(user_message, message_count):
     """
     Enhanced NLP bot response with fuzzy matching and context awareness
