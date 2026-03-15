@@ -491,21 +491,20 @@
                 console.log('Start Time Local:', startDate.toLocaleString());
                 console.log('Timezone:', Intl.DateTimeFormat().resolvedOptions().timeZone);
                 
-                // Format times in 12-hour format with seconds - explicitly use local timezone
+                // Format times in 12-hour format with seconds - uses browser's local timezone automatically
                 const startTimeStr = startDate.toLocaleTimeString('en-US', { 
                     hour: '2-digit', 
                     minute: '2-digit', 
                     second: '2-digit',
-                    hour12: true,
-                    timeZone: '' // Empty string forces browser's default timezone
+                    hour12: true
+                    // No timeZone option = uses browser's default timezone
                 });
                 
                 const endTimeStr = endDate ? endDate.toLocaleTimeString('en-US', { 
                     hour: '2-digit', 
                     minute: '2-digit', 
                     second: '2-digit',
-                    hour12: true,
-                    timeZone: ''
+                    hour12: true
                 }) : '<span class="text-yellow-600 font-medium">Active</span>';
                 
                 // Format date as readable string
