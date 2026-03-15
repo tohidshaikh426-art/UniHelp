@@ -101,13 +101,12 @@ document.getElementById('messageForm').addEventListener('submit', async (e) => {
     if (!message) return;
     
     try {
-        const response = await fetch('/api/chat/send_message', {
+        const response = await fetch('/api/chat/technician/send', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 session_id: sessionId,
-                message: message,
-                sender: 'technician'
+                message: message
             })
         });
         
@@ -120,10 +119,12 @@ document.getElementById('messageForm').addEventListener('submit', async (e) => {
             
             // Scroll to bottom
             setTimeout(scrollToBottom, 100);
+        } else {
+            alert('Failed to send message: ' + (data.error || 'Unknown error'));
         }
     } catch (error) {
         console.error('Error sending message:', error);
-        alert('Failed to send message');
+        alert('Failed to send message. Please check your connection.');
     }
 });
 
