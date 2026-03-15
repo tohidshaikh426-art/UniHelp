@@ -398,14 +398,31 @@
             
             try {
                 const response = await fetch('/api/work/sessions/history');
-                const data = await response.json();
                 
-                renderWorkSessions(data.sessions);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('Work sessions data:', data);
+                
+                if (data.success) {
+                    renderWorkSessions(data.sessions);
+                } else {
+                    throw new Error(data.error || 'Failed to load work sessions');
+                }
             } catch (error) {
                 console.error('Error loading work sessions:', error);
                 document.getElementById('workSessionsContent').innerHTML = `
                     <div class="text-center py-8 text-red-600">
-                        <p>Error loading work sessions. Please try again.</p>
+                        <svg class="w-16 h-16 text-red-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <p class="font-semibold mb-2">Error loading work sessions</p>
+                        <p class="text-sm">${error.message}</p>
+                        <button onclick="openWorkSessionsModal()" class="mt-4 bg-primary text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
+                            Try Again
+                        </button>
                     </div>
                 `;
             }

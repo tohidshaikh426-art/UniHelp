@@ -2092,7 +2092,10 @@ def get_active_work_session():
 def get_work_sessions_history():
     """Get work sessions history for current month"""
     try:
+        print(f"🔍 Fetching work sessions for technician ID: {session.get('user_id')}")
+        
         if not db.client:
+            print("❌ Database client not available")
             return jsonify({'success': False, 'error': 'Database connection not available'}), 500
         
         tech_id = session.get('user_id')
@@ -2101,6 +2104,8 @@ def get_work_sessions_history():
         current_month = datetime.now().strftime('%Y-%m')
         start_date = f"{current_month}-01T00:00:00"
         
+        print(f"📅 Fetching sessions from {start_date} to present")
+        
         response = db.client.table('technician_work_log').select('*')\
             .eq('technicianid', tech_id)\
             .gte('start_time', start_date)\
@@ -2108,6 +2113,7 @@ def get_work_sessions_history():
             .execute()
         
         work_sessions = response.data if response.data else []
+        print(f"✅ Found {len(work_sessions)} work sessions")
         
         return jsonify({'success': True, 'sessions': work_sessions})
     
