@@ -889,10 +889,33 @@ def view_ticket(ticket_id):
         if can_comment:
             comments = db.get_comments_by_ticket(ticket_id)
         
+        # Check for active work session (for technicians only)
+        active_session = None
+        if role == 'technician' and ticket_assigned_to == user_id:
+            try:
+                tech_id = session.get('user_id')
+                work_response = db.client.table('technician_work_log').select('*')\
+                    .eq('technicianid', tech_id)\
+                    .eq('ticketid', ticket_id)\
+                    .is_('end_time', None)\
+                    .order('start_time', desc=True)\
+                    .limit(1)\
+                    .execute()
+                
+                if work_response.data and len(work_response.data) > 0:
+                    active_session = work_response.data[0]
+                    # Convert start_time to timestamp for JavaScript
+                    from datetime import datetime as dt
+                    start_dt = dt.fromisoformat(active_session['start_time'].replace('Z', '+00:00'))
+                    active_session['start_time_ts'] = int(start_dt.timestamp() * 1000)
+            except Exception as e:
+                print(f"Warning: Could not fetch active session: {e}")
+        
         return render_template('view_ticket.html', 
                              ticket=ticket, 
                              comments=comments,
-                             can_comment=can_comment)
+                             can_comment=can_comment,
+                             active_session=active_session)
     except Exception as e:
         print(f"❌ Error viewing ticket {ticket_id}: {e}")
         import traceback
@@ -2062,6 +2085,58 @@ def get_active_work_session():
         import traceback
         print(f"Traceback: {traceback.format_exc()}")
         return jsonify({'success': False, 'error': f'Failed to get active session: {str(e)}'}), 500
+
+@app.route('/api/ticket/start_work/<int:ticket_id>', methods=['POST'])
+@login_required
+@role_required(['technician'])
+def start_working_on_ticket(ticket_id):
+    """Start working on a specific ticket - creates work log entry"""
+    try:
+        if not db.client:
+            return jsonify({'success': False, 'error': 'Database connection not available'}), 500
+        
+        tech_id = session.get('user_id')
+        
+        # Check if there's already an active session for this ticket
+        existing = db.client.table('technician_work_log').select('*')\
+            .eq('technicianid', tech_id)\
+            .eq('ticketid', ticket_id)\
+            .is_('end_time', None)\
+            .execute()
+        
+        if existing.data and len(existing.data) > 0:
+            # Return existing session
+            active = existing.data[0]
+            return jsonify({
+                'success': True,
+                'worklog_id': active['worklogid'],
+                'message': 'Continuing work session',
+                'already_active': True
+            })
+        
+        # Create new work log entry
+        now = datetime.now()
+        response = db.client.table('technician_work_log').insert({
+            'technicianid': tech_id,
+            'ticketid': ticket_id,
+            'work_type': 'ticket_resolution',
+            'start_time': now.isoformat(),
+            'description': f'Working on ticket #{ticket_id}'
+        }).execute()
+        
+        worklog_id = response.data[0]['worklogid']
+        
+        return jsonify({
+            'success': True,
+            'worklog_id': worklog_id,
+            'message': 'Work session started successfully'
+        })
+    
+    except Exception as e:
+        print(f"❌ Error starting work on ticket: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        return jsonify({'success': False, 'error': f'Failed to start work: {str(e)}'}), 500
 
 @app.route('/technician/work_log')
 @login_required

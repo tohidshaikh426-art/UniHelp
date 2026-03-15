@@ -144,4 +144,125 @@
     </div>
     {% endif %}
 </div>
+
+<!-- Work Timer Widget (For Technicians) -->
+{% if session.role == 'technician' and ticket.assignedto == session.user_id %}
+<div id="workTimerWidget" class="fixed bottom-4 right-4 bg-white rounded-lg shadow-lg border-2 border-primary p-4 max-w-sm">
+    <div id="timerNotStarted" class="{% if active_session %}hidden{% endif %}">
+        <p class="text-sm font-semibold text-gray-700 mb-2">Ready to work on this ticket?</p>
+        <button onclick="startWorkingOnTicket()" 
+                class="w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition font-medium">
+            ▶️ Start Working
+        </button>
+    </div>
+    
+    <div id="timerActive" class="{% if not active_session %}hidden{% endif %}">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-semibold text-gray-700">⏱️ Working...</span>
+            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                <span class="w-2 h-2 bg-red-500 rounded-full mr-1 animate-pulse"></span>
+                LIVE
+            </span>
+        </div>
+        <div id="timerDisplay" class="text-3xl font-bold text-primary font-mono mb-3">
+            00:00:00
+        </div>
+        <button onclick="stopWorking()" 
+                class="w-full bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition font-medium">
+            ⏹️ Stop Work
+        </button>
+    </div>
+</div>
+
+<script>
+let workTimerInterval = null;
+let currentWorklogId = {{ active_session.worklogid if active_session else 'null' }};
+let workStartTime = {{ active_session.start_time_ts if active_session else 'null' }};
+
+// Format duration as HH:MM:SS
+function formatWorkDuration(hours) {
+    const totalSeconds = Math.floor(hours * 3600);
+    const hrs = Math.floor(totalSeconds / 3600);
+    const mins = Math.floor((totalSeconds % 3600) / 60);
+    const secs = totalSeconds % 60;
+    return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+}
+
+// Update timer display
+function updateTimer() {
+    if (!workStartTime) return;
+    
+    const now = Date.now();
+    const diffMs = now - workStartTime;
+    const diffHours = diffMs / (1000 * 60 * 60);
+    
+    const timerEl = document.getElementById('timerDisplay');
+    if (timerEl) {
+        timerEl.textContent = formatWorkDuration(diffHours);
+    }
+}
+
+// Start working on ticket
+async function startWorkingOnTicket() {
+    try {
+        const response = await fetch('/api/ticket/start_work/{{ ticket.ticketid }}', {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            currentWorklogId = data.worklog_id;
+            workStartTime = Date.now();
+            document.getElementById('timerNotStarted').classList.add('hidden');
+            document.getElementById('timerActive').classList.remove('hidden');
+            
+            // Start timer
+            updateTimer();
+            workTimerInterval = setInterval(updateTimer, 1000);
+            
+            alert('Work session started! Timer is running.');
+        } else {
+            alert('Error: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error starting work:', error);
+        alert('Error starting work session');
+    }
+}
+
+// Stop working
+async function stopWorking() {
+    if (!currentWorklogId) return;
+    
+    try {
+        const response = await fetch(`/api/work/end/${currentWorklogId}`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            clearInterval(workTimerInterval);
+            alert(`Work session ended! ${data.hours_worked_display} logged.`);
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error stopping work:', error);
+        alert('Error stopping work session');
+    }
+}
+
+// Initialize timer on page load
+document.addEventListener('DOMContentLoaded', function() {
+    if (currentWorklogId && workStartTime) {
+        updateTimer();
+        workTimerInterval = setInterval(updateTimer, 1000);
+    }
+});
+</script>
+{% endif %}
+
 {% endblock %}

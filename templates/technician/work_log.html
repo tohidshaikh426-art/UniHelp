@@ -201,6 +201,17 @@ function updateElapsedTime(startTime) {
     const start = new Date(startTime);
     const now = new Date();
     const diffMs = now - start;
+    
+    // If difference is negative or too large, something is wrong
+    if (diffMs < 0 || diffMs > 86400000) { // More than 24 hours
+        console.warn('Invalid time difference:', diffMs);
+        const elapsedEl = document.getElementById('elapsedTime');
+        if (elapsedEl) {
+            elapsedEl.textContent = '00:00:00';
+        }
+        return;
+    }
+    
     const diffHours = diffMs / (1000 * 60 * 60);
     
     const elapsedEl = document.getElementById('elapsedTime');
@@ -224,6 +235,7 @@ async function loadActiveSession() {
     try {
         const response = await fetch('/api/work/active');
         const data = await response.json();
+        console.log('Active session data:', data);
 
         const card = document.getElementById('activeSessionCard');
         if (data.active) {
@@ -233,6 +245,7 @@ async function loadActiveSession() {
             document.getElementById('activeDescription').textContent = data.description || 'No description';
             
             const startDate = new Date(data.start_time);
+            console.log('Session start time:', startDate);
             document.getElementById('activeStartTime').textContent = formatTime12hr(startDate);
             
             // Start elapsed time display
@@ -241,9 +254,6 @@ async function loadActiveSession() {
             card.classList.remove('hidden');
         } else {
             card.classList.add('hidden');
-            if (elapsedTimeInterval) {
-                clearInterval(elapsedTimeInterval);
-            }
         }
     } catch (error) {
         console.error('Error loading active session:', error);

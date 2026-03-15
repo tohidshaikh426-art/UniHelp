@@ -58,6 +58,21 @@
         </div>
     </div>
 
+    <!-- Time Tracking Reminder (For Technicians) -->
+    <div id="timeTrackingReminder" class="bg-yellow-50 border-l-4 border-yellow-400 p-4 hidden">
+        <div class="flex items-start">
+            <svg class="w-5 h-5 text-yellow-400 mr-3 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div class="flex-1">
+                <h3 class="text-sm font-semibold text-yellow-800">⏰ Don't forget to track your time!</h3>
+                <p class="text-sm text-yellow-700 mt-1">
+                    You have <span id="openTicketsCount" class="font-bold">0</span> open ticket(s). Remember to click "Start Working" on each ticket to track your work time.
+                </p>
+            </div>
+        </div>
+    </div>
+
     <!-- Assigned Tickets -->
     <div class="bg-white rounded-lg shadow overflow-hidden">
         <div class="px-6 py-4 border-b border-gray-200">
@@ -212,6 +227,36 @@ document.addEventListener('DOMContentLoaded', function() {
     if (statusSelect) {
         statusSelect.addEventListener('change', toggleResolutionFields);
     }
+    
+    // Check for open tickets and show time tracking reminder
+    checkOpenTicketsAndRemind();
 });
+
+// Check if technician has open tickets without active timer
+async function checkOpenTicketsAndRemind() {
+    try {
+        // Get all assigned tickets from the page
+        const ticketRows = document.querySelectorAll('tbody tr');
+        let openTicketsCount = 0;
+        
+        ticketRows.forEach(row => {
+            const statusCell = row.querySelector('.status-badge');
+            if (statusCell) {
+                const status = statusCell.textContent.trim().toLowerCase();
+                if (status !== 'closed' && status !== 'resolved') {
+                    openTicketsCount++;
+                }
+            }
+        });
+        
+        // Show reminder if there are open tickets
+        if (openTicketsCount > 0) {
+            document.getElementById('openTicketsCount').textContent = openTicketsCount;
+            document.getElementById('timeTrackingReminder').classList.remove('hidden');
+        }
+    } catch (error) {
+        console.error('Error checking open tickets:', error);
+    }
+}
 </script>
 {% endblock %}
