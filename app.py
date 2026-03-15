@@ -2604,6 +2604,31 @@ def get_session_messages(session_id):
         if not db.client:
             return jsonify({'success': False, 'error': 'Database connection not available'}), 500
         
+        # Verify session exists and user has access
+        chat_session = db.get_chat_session_by_id(session_id)
+        if not chat_session:
+            print(f"⚠️ Session {session_id} not found for message polling")
+            return jsonify({'success': False, 'error': 'Session not found'}), 404
+        
+        # Allow session owner or assigned technician to view messages
+        current_user_id = session.get('user_id')
+        current_role = session.get('role')
+        
+        # Check if user owns this session OR is the assigned technician
+        is_owner = chat_session['userid'] == current_user_id
+        
+        is_technician = False
+        if current_role == 'technician':
+            live_chat_response = db.client.table('live_chat').select('*')\
+                .eq('sessionid', session_id)\
+                .eq('technicianid', current_user_id)\
+                .execute()
+            is_technician = live_chat_response.data and len(live_chat_response.data) > 0
+        
+        if not is_owner and not is_technician:
+            print(f"⚠️ User {current_user_id} not authorized for session {session_id}")
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+        
         # Get only technician messages from this session
         response = db.client.table('chat_message').select('*')\
             .eq('sessionid', session_id)\
