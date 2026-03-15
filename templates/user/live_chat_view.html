@@ -52,14 +52,27 @@
         <div id="messagesContainer" class="p-6 space-y-4 max-h-[600px] overflow-y-auto">
             {% if messages %}
                 {% for message in messages %}
-                <div class="flex {% if message.sender == 'user' or message.sender == 'admin' or message.sender == 'staff' %}justify-start{% else %}justify-end{% endif %}">
+                <!-- User/Staff/Admin messages on RIGHT (sender's perspective) -->
+                {% if message.sender == session.role or message.sender in ['user', 'staff', 'admin'] %}
+                <div class="flex justify-end">
                     <div class="max-w-[70%]">
-                        <div class="rounded-lg px-4 py-3 {% if message.sender in ['technician', 'bot'] %}bg-blue-500 text-white{% else %}bg-gray-100{% endif %}">
+                        <div class="rounded-lg px-4 py-3 bg-blue-500 text-white">
                             <p class="text-sm">{{ message.message }}</p>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1 text-right">{{ message.created_at[:16] if message.created_at else '' }}</p>
+                    </div>
+                </div>
+                <!-- Technician/Bot messages on LEFT -->
+                {% else %}
+                <div class="flex justify-start">
+                    <div class="max-w-[70%]">
+                        <div class="rounded-lg px-4 py-3 bg-gray-100">
+                            <p class="text-sm text-gray-900">{{ message.message }}</p>
                         </div>
                         <p class="text-xs text-gray-500 mt-1">{{ message.created_at[:16] if message.created_at else '' }}</p>
                     </div>
                 </div>
+                {% endif %}
                 {% endfor %}
             {% else %}
                 <div class="text-center text-gray-500 py-12">
@@ -148,13 +161,14 @@ function addMessage(text, sender) {
     const now = new Date().toISOString().slice(0, 16);
     
     const div = document.createElement('div');
-    div.className = 'flex ' + (sender === 'user' ? 'justify-start' : 'justify-end');
+    // User messages on RIGHT
+    div.className = 'flex justify-end';
     div.innerHTML = `
         <div class="max-w-[70%]">
-            <div class="rounded-lg px-4 py-3 ${sender === 'user' ? 'bg-gray-100' : 'bg-blue-500 text-white'}">
+            <div class="rounded-lg px-4 py-3 bg-blue-500 text-white">
                 <p class="text-sm">${text}</p>
             </div>
-            <p class="text-xs text-gray-500 mt-1">${now}</p>
+            <p class="text-xs text-gray-500 mt-1 text-right">${now}</p>
         </div>
     `;
     
