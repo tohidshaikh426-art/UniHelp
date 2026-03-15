@@ -62,7 +62,7 @@
                         </svg>
                         <span>Open Chat</span>
                     </a>
-                    <button onclick="endChat({{ chat.livechatid }})" 
+                    <button onclick="endChat('{{ chat.livechatid }}')" 
                             class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition">
                         End Chat
                     </button>
@@ -170,11 +170,26 @@ function updateConnectionStatus(connected) {
 async function endChat(liveChatId) {
     if (!confirm('Are you sure you want to end this chat?')) return;
     
-    await fetch('/api/chat/end_live_chat/' + liveChatId, {
-        method: 'POST'
-    });
-    
-    location.reload();
+    try {
+        const response = await fetch('/api/chat/end_live_chat/' + liveChatId, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('✅ Chat ended successfully!');
+            location.reload();
+        } else {
+            alert('❌ Error: ' + (result.error || 'Failed to end chat'));
+        }
+    } catch (error) {
+        console.error('Error ending chat:', error);
+        alert('❌ An error occurred while ending the chat. Please try again.');
+    }
 }
 
 // Real-time updates - check every 3 seconds (like WhatsApp)
