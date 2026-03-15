@@ -487,22 +487,25 @@
                 
                 console.log('Session:', session);
                 console.log('Start Time ISO:', session.start_time);
-                console.log('Start Time Parsed:', startDate);
+                console.log('Start Time Parsed (UTC):', startDate.toISOString());
                 console.log('Start Time Local:', startDate.toLocaleString());
+                console.log('Timezone:', Intl.DateTimeFormat().resolvedOptions().timeZone);
                 
-                // Format times in 12-hour format with seconds
+                // Format times in 12-hour format with seconds - explicitly use local timezone
                 const startTimeStr = startDate.toLocaleTimeString('en-US', { 
                     hour: '2-digit', 
                     minute: '2-digit', 
                     second: '2-digit',
-                    hour12: true 
+                    hour12: true,
+                    timeZone: '' // Empty string forces browser's default timezone
                 });
                 
                 const endTimeStr = endDate ? endDate.toLocaleTimeString('en-US', { 
                     hour: '2-digit', 
                     minute: '2-digit', 
                     second: '2-digit',
-                    hour12: true 
+                    hour12: true,
+                    timeZone: ''
                 }) : '<span class="text-yellow-600 font-medium">Active</span>';
                 
                 // Format date as readable string
@@ -511,6 +514,10 @@
                     day: 'numeric',
                     year: 'numeric'
                 });
+                
+                // Debug: Show what we're displaying
+                console.log(`Displaying - Date: ${dateStr}, Start: ${startTimeStr}, End: ${endTimeStr}`);
+                console.log('---');
                 
                 const durationStr = session.hours_worked 
                     ? formatDuration(session.hours_worked)
