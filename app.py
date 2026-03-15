@@ -3406,6 +3406,82 @@ def view_technician_chat(live_chat_id):
         flash('Failed to load chat', 'error')
         return redirect(url_for('technician_dashboard'))
 
+@app.route('/user/live_chat/<int:live_chat_id>', methods=['GET'])
+@login_required
+@role_required(['staff', 'admin', 'student'])
+def view_user_live_chat(live_chat_id):
+    """View specific live chat as user (staff/admin/student)"""
+    try:
+        if not db.client:
+            flash('Database connection not available', 'error')
+            return redirect(url_for('user_dashboard'))
+        
+        user_id = session.get('user_id')
+        
+        # Get live chat details - check if user is part of this chat
+        response = db.client.table('live_chat').select('*')\
+            .eq('livechatid', live_chat_id)\
+            .execute()
+        
+        if not response.data or len(response.data) == 0:
+            flash('Live chat not found', 'error')
+            return redirect(url_for('user_dashboard'))
+        
+        live_chat = response.data[0]
+        
+        # Verify user is either the session owner or the assigned technician
+        session_response = db.client.table('chat_session').select('userid')\
+            .eq('sessionid', live_chat['sessionid'])\
+            .execute()
+        
+        if not session_response.data or len(session_response.data) == 0:
+            flash('Chat session not found', 'error')
+            return redirect(url_for('user_dashboard'))
+        
+        session_owner_id = session_response.data[0]['userid']
+        
+        # Check authorization
+        is_owner = (session_owner_id == user_id)
+        is_technician = (live_chat['technicianid'] == user_id and session.get('role') == 'technician')
+        
+        if not is_owner and not is_technician:
+            flash('You are not authorized to view this chat', 'error')
+            return redirect(url_for('user_dashboard'))
+        
+        # Get technician info
+        tech_response = db.client.table('user').select('name, email')\
+            .eq('userid', live_chat['technicianid'])\
+            .execute()
+        
+        technician_name = 'Technician'
+        technician_email = ''
+        
+        if tech_response.data and len(tech_response.data) > 0:
+            tech_data = tech_response.data[0]
+            technician_name = tech_data['name']
+            technician_email = tech_data['email']
+        
+        # Get messages
+        messages_response = db.client.table('chat_message').select('*')\
+            .eq('sessionid', live_chat['sessionid'])\
+            .order('created_at', desc=False)\
+            .execute()
+        
+        messages = messages_response.data if messages_response.data else []
+        
+        return render_template('user/live_chat_view.html', 
+                             live_chat=live_chat,
+                             technician_name=technician_name,
+                             technician_email=technician_email,
+                             messages=messages)
+    
+    except Exception as e:
+        print(f"❌ Error viewing user live chat: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        flash('Failed to load chat', 'error')
+        return redirect(url_for('user_dashboard'))
+
 @app.route('/chatbot')
 @app.route('/ai-chat')
 @login_required
