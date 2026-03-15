@@ -173,7 +173,7 @@ async function endChat() {
     window.location.href = '{{ url_for("technician_live_chats") }}';
 }
 
-// Poll for new messages every 3 seconds
+// Poll for new messages every 2 seconds
 let lastMessageCount = {{ messages|length if messages else 0 }};
 
 setInterval(async () => {
@@ -183,17 +183,23 @@ setInterval(async () => {
         
         if (data.success && data.new_chats) {
             const chat = data.new_chats.find(c => c.livechatid == {{ live_chat.livechatid }});
-            if (chat && chat.last_message) {
-                // Check if we need to update
-                const currentMessages = document.querySelectorAll('#messagesContainer .flex');
-                if (currentMessages.length < lastMessageCount) {
-                    location.reload(); // Reload if messages changed
+            if (chat) {
+                console.log('📊 Chat polling:', { 
+                    currentCount: lastMessageCount, 
+                    newCount: chat.message_count,
+                    lastMessage: chat.last_message 
+                });
+                
+                // Check if there are new messages
+                if (chat.message_count > lastMessageCount) {
+                    console.log('✅ New message detected! Reloading...');
+                    location.reload(); // Reload to get new messages
                 }
             }
         }
     } catch (error) {
         console.error('Error polling for messages:', error);
     }
-}, 3000);
+}, 2000);
 </script>
 {% endblock %}

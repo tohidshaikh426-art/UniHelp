@@ -1172,13 +1172,33 @@ def send_chat_message():
             'message': user_message
         })
         
+        # Check if there's an active live chat with technician
+        live_chat_response = db.client.table('live_chat').select('*')\
+            .eq('sessionid', session_id)\
+            .eq('status', 'active')\
+            .execute()
+        
+        has_active_live_chat = live_chat_response.data and len(live_chat_response.data) > 0
+        
+        if has_active_live_chat:
+            print(f"🔴 LIVE CHAT ACTIVE - Notifying technician (ID: {live_chat_response.data[0]['technicianid']})")
+            # Don't generate bot response during live chat
+            # Technician will respond directly
+            return jsonify({
+                'success': True,
+                'bot_message': None,  # No bot message
+                'message_count': 1,  # Minimal count
+                'should_escalate': False,
+                'live_chat_active': True
+            })
+        
         # Count messages in this session
         all_messages = db.get_chat_messages_by_session(session_id)
         message_count = len(all_messages)
         
         print(f"📊 Message count: {message_count}, AI Enabled: {AI_ENABLED}")
         
-        # Generate bot response
+        # Generate bot response (only if no live chat)
         if AI_ENABLED:
             bot_response, intent = generate_ai_response(user_message, message_count, session_id)
         else:
@@ -3225,7 +3245,8 @@ def get_new_chats():
                 'started_at': chat.get('started_at'),
                 'name': 'Unknown',
                 'role': 'Unknown',
-                'last_message': ''
+                'last_message': '',
+                'message_count': 0
             }
             
             if session_response.data and len(session_response.data) > 0:
@@ -3243,6 +3264,10 @@ def get_new_chats():
                 msg_response = db.client.table('chat_message').select('message').eq('sessionid', chat['sessionid']).order('created_at', desc=True).limit(1).execute()
                 if msg_response.data and len(msg_response.data) > 0:
                     chat_info['last_message'] = msg_response.data[0]['message']
+                
+                # Get total message count
+                all_msgs_response = db.client.table('chat_message').select('*', count='exact').eq('sessionid', chat['sessionid']).execute()
+                chat_info['message_count'] = all_msgs_response.count if hasattr(all_msgs_response, 'count') else 0
             
             new_chats.append(chat_info)
     

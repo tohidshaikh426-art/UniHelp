@@ -296,12 +296,19 @@ document.getElementById('chatForm').addEventListener('submit', async (e) => {
     removeTypingIndicator();
     
     if (data.success) {
-        // Show response immediately for better UX
-        addMessageToChat('bot', data.bot_message);
-        messageCount = data.message_count;
-        
-        if (data.should_escalate) {
-            document.getElementById('escalationPanel').classList.remove('hidden');
+        // Check if live chat is active (no bot response during live chat)
+        if (data.live_chat_active) {
+            // Message sent to technician, no bot response
+            messageCount = data.message_count;
+            console.log('✅ Message sent to technician in live chat');
+        } else if (data.bot_message) {
+            // Show bot response for normal chat
+            addMessageToChat('bot', data.bot_message);
+            messageCount = data.message_count;
+            
+            if (data.should_escalate) {
+                document.getElementById('escalationPanel').classList.remove('hidden');
+            }
         }
     }
 });
