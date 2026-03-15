@@ -2936,38 +2936,66 @@ def get_new_chats():
 @role_required(['technician'])
 def view_technician_chat(live_chat_id):
     """View specific chat as technician"""
-    tech_id = session.get('user_id')
+    try:
+        if not db.client:
+            flash('Database connection not available', 'error')
+            return redirect(url_for('technician_dashboard'))
+        
+        tech_id = session.get('user_id')
+        
+        # Get live chat details using Supabase
+        response = db.client.table('live_chat').select('*')\
+            .eq('livechatid', live_chat_id)\
+            .eq('technicianid', tech_id)\
+            .execute()
+        
+        if not response.data or len(response.data) == 0:
+            flash('Live chat not found', 'error')
+            return redirect(url_for('technician_dashboard'))
+        
+        live_chat = response.data[0]
+        
+        # Get session and user info using Supabase
+        session_response = db.client.table('chat_session').select('userid')\
+            .eq('sessionid', live_chat['sessionid'])\
+            .execute()
+        
+        user_name = 'Unknown'
+        user_email = ''
+        
+        if session_response.data and len(session_response.data) > 0:
+            user_id = session_response.data[0]['userid']
+            
+            # Get user details
+            user_response = db.client.table('user').select('name, email')\
+                .eq('userid', user_id)\
+                .execute()
+            
+            if user_response.data and len(user_response.data) > 0:
+                user_data = user_response.data[0]
+                user_name = user_data['name']
+                user_email = user_data['email']
+        
+        # Get chat messages using Supabase
+        msg_response = db.client.table('chat_message').select('*')\
+            .eq('sessionid', live_chat['sessionid'])\
+            .order('created_at', desc=False)\
+            .execute()
+        
+        messages = msg_response.data if msg_response.data else []
+        
+        return render_template('technician/chat_view.html', 
+                             live_chat=live_chat,
+                             messages=messages,
+                             user_name=user_name,
+                             user_email=user_email)
     
-    # Get live chat details
-    response = db.client.table('live_chat').select('*').eq('livechatid', live_chat_id).eq('technicianid', tech_id).execute()
-    
-    if not response.data or len(response.data) == 0:
+    except Exception as e:
+        print(f"❌ Error viewing technician chat: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        flash('Failed to load chat', 'error')
         return redirect(url_for('technician_dashboard'))
-    
-    live_chat = response.data[0]
-    
-    # Get session and user info
-    session_response = db.client.table('chat_session').select('userid').eq('sessionid', live_chat['sessionid']).execute()
-    user_name = 'Unknown'
-    user_email = ''
-    
-    if session_response.data and len(session_response.data) > 0:
-        user_id = session_response.data[0]['userid']
-        user_response = db.client.table('user').select('name, email').eq('userid', user_id).execute()
-        if user_response.data and len(user_response.data) > 0:
-            user_data = user_response.data[0]
-            user_name = user_data['name']
-            user_email = user_data['email']
-    
-    # Get chat messages
-    msg_response = db.client.table('chat_message').select('*').eq('sessionid', live_chat['sessionid']).order('created_at', desc=False).execute()
-    messages = msg_response.data if msg_response.data else []
-    
-    return render_template('technician/chat_view.html', 
-                         live_chat=live_chat,
-                         messages=messages,
-                         user_name=user_name,
-                         user_email=user_email)
 
 @app.route('/chatbot')
 @app.route('/ai-chat')
