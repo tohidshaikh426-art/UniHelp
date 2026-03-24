@@ -1,15 +1,16 @@
 # file_uploads.py
-# File upload management for UniHelp tickets
+# File upload management for UniHelp tickets using Supabase Storage
 
-from flask import Blueprint, jsonify, request, send_from_directory, flash, redirect, url_for
+from flask import Blueprint, jsonify, request
 from werkzeug.utils import secure_filename
+from supabase_client import db
 import os
 from datetime import datetime
 
 file_uploads = Blueprint('file_uploads', __name__)
 
-# Configuration
-UPLOAD_FOLDER = 'uploads'
+# Configuration - No longer needed with Supabase Storage
+# UPLOAD_FOLDER = 'uploads'  # Removed - using Supabase Storage instead
 MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
@@ -26,7 +27,7 @@ def check_file_size(file):
 
 @file_uploads.route('/upload_ticket_file', methods=['POST'])
 def upload_ticket_file():
-    """Handle ticket file upload with validation"""
+    """Handle ticket file upload with validation using Supabase Storage"""
     import traceback
     
     try:
@@ -63,51 +64,55 @@ def upload_ticket_file():
         filename = f"{timestamp}_{original_filename}"
         print(f"📝 Generated filename: {filename}")
         
-        # Ensure upload folder exists
+        # Read file data
+        file_data = file.read()
+        file_size = len(file_data)
+        print(f"📊 File size: {file_size} bytes")
+        
+        # Upload to Supabase Storage
         try:
-            os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-            print(f"✅ Upload folder ready: {UPLOAD_FOLDER}")
-        except Exception as folder_error:
-            print(f"❌ Error creating upload folder: {folder_error}")
+            # Create bucket name
+            bucket_name = 'ticket-attachments'
+            
+            # Create path in storage (organize by date)
+            file_path = f"tickets/{datetime.now().strftime('%Y/%m/%d')}/{filename}"
+            
+            print(f"🗄️ Uploading to Supabase Storage: {bucket_name}/{file_path}")
+            
+            # Upload file to Supabase Storage
+            response = db.client.storage.from_(bucket_name).upload(
+                file_path,
+                file_data,
+                {'content-type': file.content_type}
+            )
+            
+            print(f"✅ Upload successful: {response}")
+            
+            # Get public URL
+            public_url_response = db.client.storage.from_(bucket_name).get_public_url(file_path)
+            public_url = public_url_response
+            
+            print(f"🔗 Public URL: {public_url}")
+            
+            # Return success with file info
+            # Store the file_path (not full URL) in database for reference
             return jsonify({
-                'success': False,
-                'error': 'Server configuration error'
-            }), 500
-        
-        # Save file
-        filepath = os.path.join(UPLOAD_FOLDER, filename)
-        print(f"💾 Saving to: {filepath}")
-        
-        try:
-            file.save(filepath)
-            print(f"✅ File saved successfully")
-        except Exception as save_error:
-            print(f"❌ Error saving file: {save_error}")
+                'success': True,
+                'message': 'File uploaded successfully!',
+                'filename': filename,
+                'filepath': f'supabase://{bucket_name}/{file_path}',  # Custom protocol for Supabase Storage
+                'public_url': public_url,
+                'file_size': file_size,
+                'content_type': file.content_type
+            })
+            
+        except Exception as storage_error:
+            print(f"❌ Supabase Storage error: {storage_error}")
             print(f"Traceback: {traceback.format_exc()}")
             return jsonify({
                 'success': False,
-                'error': f'Failed to save file: {str(save_error)}'
+                'error': f'Storage upload failed: {str(storage_error)}'
             }), 500
-        
-        # Verify file was saved successfully
-        if not os.path.exists(filepath):
-            print(f"❌ File doesn't exist after save: {filepath}")
-            return jsonify({
-                'success': False,
-                'error': 'Failed to save uploaded file'
-            }), 500
-        
-        file_size = os.path.getsize(filepath)
-        print(f"✅ File uploaded successfully: {filepath} (Size: {file_size} bytes)")
-        
-        # Return success with file info
-        return jsonify({
-            'success': True,
-            'message': 'File uploaded successfully!',
-            'filename': filename,
-            'filepath': filepath,
-            'url': f'/uploads/{filename}'
-        })
     
     except Exception as e:
         print(f"❌ Upload error: {e}")
@@ -117,7 +122,25 @@ def upload_ticket_file():
             'error': f'Upload failed: {str(e)}'
         }), 500
 
-@file_uploads.route('/uploads/<filename>')
-def serve_uploaded_file(filename):
-    """Serve uploaded files"""
-    return send_from_directory(UPLOAD_FOLDER, filename)
+@file_uploads.route('/uploads/<path:file_path>')
+def serve_uploaded_file(file_path):
+    """Redirect to Supabase Storage public URL"""
+    try:
+        # Extract bucket and path from stored filepath
+        # Format: supabase://bucket_name/path/to/file
+        if file_path.startswith('supabase://'):
+            parts = file_path.replace('supabase://', '').split('/', 1)
+            bucket_name = parts[0]
+            file_path_in_bucket = parts[1]
+            
+            # Get public URL
+            public_url = db.client.storage.from_(bucket_name).get_public_url(file_path_in_bucket)
+            
+            # Redirect to public URL
+            from flask import redirect
+            return redirect(public_url)
+        else:
+            return jsonify({'error': 'Invalid file path format'}), 400
+    except Exception as e:
+        print(f"❌ Error serving file: {e}")
+        return jsonify({'error': str(e)}), 500
