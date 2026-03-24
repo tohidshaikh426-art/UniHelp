@@ -1,6 +1,37 @@
 {% extends "base.html" %}
 
-{% block title %}Ticket #{{ ticket.ticketid }} - UniHelp{% endblock %}
+{% block title %}Ticket #{{ ticket.ticketid }} - UniHelp
+<script>
+// Force download of file from URL (works with cross-origin URLs)
+async function downloadAttachment(url, filename) {
+    try {
+        // Fetch the file as a blob
+        const response = await fetch(url);
+        const blob = await response.blob();
+        
+        // Create a temporary link element
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        
+        // Trigger download
+        a.click();
+        
+        // Cleanup
+        window.URL.revokeObjectURL(downloadUrl);
+        document.body.removeChild(a);
+        
+        console.log('✅ File downloaded:', filename);
+    } catch (error) {
+        console.error('❌ Download failed:', error);
+        // Fallback: open in new tab
+        window.open(url, '_blank');
+    }
+}
+</script>
+{% endblock %}
 
 {% block content %}
 <div class="max-w-5xl mx-auto space-y-6">
@@ -64,15 +95,6 @@
             <div class="pt-6 border-t border-gray-200">
                 <p class="text-sm font-medium text-gray-600 mb-3">📎 Attached File</p>
                 
-                <!-- Image Preview for image files -->
-                {% if '.png' in ticket.filepath or '.jpg' in ticket.filepath or '.jpeg' in ticket.filepath or '.gif' in ticket.filepath or '.webp' in ticket.filepath %}
-                <div class="mb-4">
-                    <img src="{{ public_url or '/uploads/' + ticket.filepath.split('/')[-1] }}" 
-                         alt="Attachment" 
-                         class="max-w-full h-auto max-h-96 rounded-lg border border-gray-300 shadow-sm hover:shadow-md transition">
-                </div>
-                {% endif %}
-                
                 <!-- File Info and Action Buttons -->
                 <div class="bg-gray-50 rounded-lg p-4">
                     <div class="flex items-center justify-between flex-wrap gap-3">
@@ -107,14 +129,13 @@
                             </a>
                             
                             <!-- Download Button -->
-                            <a href="{{ public_url or '/uploads/' + ticket.filepath.split('/')[-1] }}" 
-                               download
-                               class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium">
+                            <button onclick="downloadAttachment('{{ public_url or '/uploads/' + ticket.filepath.split('/')[-1] }}', '{{ ticket.filepath.split('/')[-1] }}')"
+                                    class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium">
                                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                                 </svg>
                                 Download
-                            </a>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -313,4 +334,35 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 {% endif %}
 
+
+<script>
+// Force download of file from URL (works with cross-origin URLs)
+async function downloadAttachment(url, filename) {
+    try {
+        // Fetch the file as a blob
+        const response = await fetch(url);
+        const blob = await response.blob();
+        
+        // Create a temporary link element
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        
+        // Trigger download
+        a.click();
+        
+        // Cleanup
+        window.URL.revokeObjectURL(downloadUrl);
+        document.body.removeChild(a);
+        
+        console.log('✅ File downloaded:', filename);
+    } catch (error) {
+        console.error('❌ Download failed:', error);
+        // Fallback: open in new tab
+        window.open(url, '_blank');
+    }
+}
+</script>
 {% endblock %}
