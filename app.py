@@ -882,6 +882,23 @@ def view_ticket(ticket_id):
             flash('Access denied', 'error')
             return redirect(url_for('dashboard'))
         
+        # Generate public URL for attachment if filepath exists
+        public_url = None
+        if ticket.get('filepath'):
+            filepath = ticket['filepath']
+            if filepath.startswith('supabase://'):
+                # Extract bucket and path from supabase:// format
+                parts = filepath.replace('supabase://', '').split('/', 1)
+                if len(parts) == 2:
+                    bucket_name = parts[0]
+                    file_path_in_bucket = parts[1]
+                    try:
+                        public_url = db.client.storage.from_(bucket_name).get_public_url(file_path_in_bucket)
+                        print(f"🔗 Generated public URL for ticket {ticket_id}: {public_url}")
+                    except Exception as url_error:
+                        print(f"⚠️ Error generating public URL: {url_error}")
+                        public_url = None
+        
         # NEW: Only fetch comments for staff, technicians, and admin (NOT students)
         comments = []
         can_comment = role in ['admin', 'technician', 'staff']
@@ -913,6 +930,7 @@ def view_ticket(ticket_id):
         
         return render_template('view_ticket.html', 
                              ticket=ticket, 
+                             public_url=public_url,
                              comments=comments,
                              can_comment=can_comment,
                              active_session=active_session)
