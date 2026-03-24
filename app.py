@@ -784,19 +784,14 @@ def auto_assign_ticket(ticket_id, category):
 @role_required(['staff', 'student'])
 def create_ticket():
     if request.method == 'POST':
-        title = request.form['title']
-        description = request.form['description']
-        category = request.form['category']
+        title = request.form.get('title')
+        description = request.form.get('description')
+        category = request.form.get('category')
         
-        filepath = None
-        if 'file' in request.files:
-            file = request.files['file']
-            if file and file.filename and allowed_file(file.filename):
-                filename = secure_filename(file.filename)
-                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                filename = f"{timestamp}_{filename}"
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                file.save(filepath)
+        # Get filepath from AJAX upload (stored in hidden field)
+        filepath = request.form.get('filepath')  # This will be supabase://... format
+        
+        print(f"📝 Creating ticket with filepath: {filepath}")
         
         # Create ticket using Supabase
         new_ticket = db.create_ticket({
@@ -804,7 +799,7 @@ def create_ticket():
             'description': description,
             'category': category,
             'userid': session.get('user_id'),
-            'filepath': filepath,
+            'filepath': filepath,  # Store supabase:// path
             'status': 'Open'
         })
         
