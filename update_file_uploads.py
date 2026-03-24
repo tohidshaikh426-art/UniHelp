@@ -1,30 +1,5 @@
-# file_uploads.py
-# File upload management for UniHelp tickets
-
-from flask import Blueprint, jsonify, request, send_from_directory, flash, redirect, url_for
-from werkzeug.utils import secure_filename
-import os
-from datetime import datetime
-
-file_uploads = Blueprint('file_uploads', __name__)
-
-# Configuration
-UPLOAD_FOLDER = 'uploads'
-MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
-
-def allowed_file(filename):
-    """Check if file extension is allowed (images only)"""
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-def check_file_size(file):
-    """Check if file size is within limit (5MB)"""
-    file.seek(0, 2)  # Seek to end
-    file_size = file.tell()
-    file.seek(0)  # Reset to beginning
-    return file_size <= MAX_FILE_SIZE
-
-@file_uploads.route('/upload_ticket_file', methods=['POST'])
+# Update file_uploads.py with better error logging
+new_upload_route = '''@file_uploads.route('/upload_ticket_file', methods=['POST'])
 def upload_ticket_file():
     """Handle ticket file upload with validation"""
     import traceback
@@ -115,9 +90,28 @@ def upload_ticket_file():
         return jsonify({
             'success': False,
             'error': f'Upload failed: {str(e)}'
-        }), 500
+        }), 500'''
 
-@file_uploads.route('/uploads/<filename>')
-def serve_uploaded_file(filename):
-    """Serve uploaded files"""
-    return send_from_directory(UPLOAD_FOLDER, filename)
+# Read the file
+with open('file_uploads.py', 'r', encoding='utf-8') as f:
+    content = f.read()
+
+# Find and replace the route
+old_route_start = "@file_uploads.route('/upload_ticket_file', methods=['POST'])"
+old_route_end = "        }), 500\n\n@file_uploads.route('/uploads/<filename>')\n"
+
+start_idx = content.find(old_route_start)
+end_idx = content.find("@file_uploads.route('/uploads/<filename>')")
+
+if start_idx != -1 and end_idx != -1:
+    # Replace the route
+    new_content = content[:start_idx] + new_upload_route + "\n\n" + content[end_idx:]
+    
+    # Write back
+    with open('file_uploads.py', 'w', encoding='utf-8') as f:
+        f.write(new_content)
+    
+    print("✅ file_uploads.py updated with detailed error logging!")
+else:
+    print("❌ Could not find the route to replace")
+    print(f"Start found: {start_idx}, End found: {end_idx}")
