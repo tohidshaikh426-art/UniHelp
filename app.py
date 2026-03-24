@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 from functools import wraps
 import re
 from difflib import SequenceMatcher
-
+from file_uploads import file_uploads
 # NEW: Import Flask-Mail for email notifications
 from flask_mail import Mail, Message
 
@@ -3560,6 +3560,9 @@ def test_ai():
             'setup_guide': 'Check AI_SETUP.md for API key setup'
         })
 
+
+# Register file upload blueprint
+app.register_blueprint(file_uploads)
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

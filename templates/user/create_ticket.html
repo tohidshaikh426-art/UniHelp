@@ -8,7 +8,7 @@
         <h1 class="text-3xl font-bold text-gray-900 mb-2">Create Support Ticket</h1>
         <p class="text-gray-600 mb-8">Fill out the form below to submit your IT support request.</p>
 
-        <form method="POST" action="{{ url_for('create_ticket') }}" enctype="multipart/form-data" class="space-y-6">
+        <form method="POST" action="{{ url_for('create_ticket') }}" class="space-y-6">
             <!-- Title -->
             <div>
                 <label for="title" class="block text-sm font-medium text-gray-700 mb-2">
@@ -44,15 +44,20 @@
                 <p class="text-sm text-gray-500 mt-2">Include any error messages, steps to reproduce, or relevant details.</p>
             </div>
 
-            <!-- File Upload -->
+            <!-- File Upload with AJAX -->
             <div>
-                <label for="file" class="block text-sm font-medium text-gray-700 mb-2">
+                <label for="fileInput" class="block text-sm font-medium text-gray-700 mb-2">
                     Attachment (Optional)
                 </label>
-                <input type="file" id="file" name="file" 
-                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                       accept=".pdf,.png,.jpg,.jpeg,.txt,.doc,.docx">
-                <p class="text-sm text-gray-500 mt-2">Accepted formats: PDF, Images, TXT, DOC, DOCX (Max 16MB)</p>
+                <input type="file" id="fileInput" accept=".png,.jpg,.jpeg,.gif,.webp"
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                <p class="text-sm text-gray-500 mt-2">Accepted formats: PNG, JPG, JPEG, GIF, WEBP (Max 5MB)</p>
+                
+                <!-- Hidden field to store uploaded file path -->
+                <input type="hidden" id="uploadedFilePath" name="filepath" value="">
+                
+                <!-- Upload Status Container -->
+                <div id="uploadStatus" class="mt-3 hidden"></div>
             </div>
 
             <!-- Submit Buttons -->
@@ -69,4 +74,70 @@
         </form>
     </div>
 </div>
+
+<script>
+// Auto-upload file when selected
+document.getElementById('fileInput').addEventListener('change', async function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    // Validate file type
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+        showUploadStatus('❌ Invalid file type. Only images (PNG, JPG, JPEG, GIF, WEBP) are allowed.', 'error');
+        this.value = '';
+        return;
+    }
+    
+    // Validate file size (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+        showUploadStatus('❌ File too large. Maximum size is 5MB.', 'error');
+        this.value = '';
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const statusDiv = document.getElementById('uploadStatus');
+    statusDiv.className = 'p-3 bg-blue-50 text-blue-700 rounded-lg';
+    statusDiv.innerHTML = '⏳ Uploading file...';
+    statusDiv.classList.remove('hidden');
+    
+    try {
+        const response = await fetch('/upload_ticket_file', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showUploadStatus('✅ ' + data.message + '<br><small>File: ' + data.filename + '</small>', 'success');
+            document.getElementById('uploadedFilePath').value = data.filepath;
+        } else {
+            showUploadStatus('❌ ' + data.error, 'error');
+            this.value = '';
+        }
+    } catch (error) {
+        showUploadStatus('❌ Upload failed. Please try again.', 'error');
+        this.value = '';
+    }
+});
+
+function showUploadStatus(message, type) {
+    const statusDiv = document.getElementById('uploadStatus');
+    statusDiv.classList.remove('hidden');
+    
+    if (type === 'success') {
+        statusDiv.className = 'p-3 bg-green-50 text-green-700 rounded-lg';
+    } else if (type === 'error') {
+        statusDiv.className = 'p-3 bg-red-50 text-red-700 rounded-lg';
+    } else {
+        statusDiv.className = 'p-3 bg-blue-50 text-blue-700 rounded-lg';
+    }
+    
+    statusDiv.innerHTML = message;
+}
+</script>
 {% endblock %}
