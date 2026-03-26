@@ -1620,6 +1620,15 @@ def admin_send_direct_message():
             'status': 'active'
         })
         
+        print(f"✅ Created live_chat: ID={live_chat['livechatid']}, technician_id={technician_id}, status='active'")
+        
+        # Verify the live_chat was created successfully
+        verify_response = db.client.table('live_chat').select('*').eq('livechatid', live_chat['livechatid']).execute()
+        if verify_response.data:
+            print(f"✅ Verified live_chat exists in database: {verify_response.data[0]}")
+        else:
+            print(f"❌ WARNING: live_chat not found in database after creation!")
+        
         # Send initial system message
         db.create_chat_message({
             'sessionid': session_id,
@@ -3368,7 +3377,12 @@ def get_new_chats():
             .eq('status', 'active')\
             .execute()
         
+        print(f"📊 Query: SELECT * FROM live_chat WHERE technicianid={tech_id} AND status='active'")
         print(f"📊 Found {len(response.data) if response.data else 0} active chats")
+        
+        if response.data:
+            for i, chat in enumerate(response.data):
+                print(f"💬 Chat #{i+1}: livechatid={chat['livechatid']}, sessionid={chat['sessionid']}, status={chat.get('status')}")
         
         new_chats = []
         if response.data:
