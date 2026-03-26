@@ -53,8 +53,9 @@
         <div id="messagesContainer" class="p-6 space-y-4 max-h-[600px] overflow-y-auto">
             {% if messages %}
                 {% for message in messages %}
-                {% set is_admin_sender = message.sender == 'admin' %}
-                <!-- DEBUG: sender={{ message.sender }} -->
+                {% set sender_lower = message.sender|default('')|lower %}
+                {% set is_admin_sender = 'admin' in sender_lower %}
+                <!-- DEBUG: sender='{{ message.sender }}' sender_lower='{{ sender_lower }}' is_admin_sender='{{ is_admin_sender }}' -->
                 <div class="flex {% if is_admin_sender %}justify-end{% else %}justify-start{% endif %}">
                     <div class="max-w-[70%]">
                         <div class="rounded-lg px-4 py-3 {% if is_admin_sender %}bg-blue-500 text-white{% else %}bg-gray-100{% endif %}">
@@ -196,7 +197,11 @@ setInterval(async () => {
 function addMessageWithTime(text, sender, createdAt) {
     const container = document.getElementById('messagesContainer');
     
-    console.log('🔍 Adding message - sender:', sender, 'isAdminSender:', sender === 'admin');
+    // Normalize sender to lowercase for comparison
+    const senderNormalized = (sender || '').toLowerCase();
+    const isAdminSender = senderNormalized.includes('admin');
+    
+    console.log('🔍 Adding message - sender:', sender, 'senderNormalized:', senderNormalized, 'isAdminSender:', isAdminSender);
     
     let formattedTime = '--';
     if (createdAt) {
@@ -215,7 +220,6 @@ function addMessageWithTime(text, sender, createdAt) {
     
     const div = document.createElement('div');
     // Admin messages appear on right (justify-end), technician/user on left (justify-start)
-    const isAdminSender = (sender === 'admin');
     div.className = 'flex ' + (isAdminSender ? 'justify-end' : 'justify-start');
     div.innerHTML = `
         <div class="max-w-[70%]">
