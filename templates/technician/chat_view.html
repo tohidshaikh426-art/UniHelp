@@ -52,9 +52,9 @@
         <div id="messagesContainer" class="p-6 space-y-4 max-h-[600px] overflow-y-auto">
             {% if messages %}
                 {% for message in messages %}
-                <div class="flex {% if message.sender == 'user' %}justify-start{% else %}justify-end{% endif %}">
+                <div class="flex {% if message.sender == 'user' or message.sender == 'admin' %}justify-start{% else %}justify-end{% endif %}">
                     <div class="max-w-[70%]">
-                        <div class="rounded-lg px-4 py-3 {% if message.sender == 'user' %}bg-gray-100{% else %}bg-blue-500 text-white{% endif %}">
+                        <div class="rounded-lg px-4 py-3 {% if message.sender == 'user' or message.sender == 'admin' %}bg-gray-100{% else %}bg-blue-500 text-white{% endif %}">
                             <p class="text-sm">{{ message.message }}</p>
                         </div>
                         <p class="text-xs text-gray-500 mt-1">{{ format_time_12hr(message.created_at) }}</p>
@@ -183,10 +183,12 @@ function addMessageWithTime(text, sender, createdAt) {
     }
     
     const div = document.createElement('div');
-    div.className = 'flex ' + (sender === 'user' ? 'justify-start' : 'justify-end');
+    // Show user and admin messages on left (justify-start), technician on right
+    const isFromOthers = (sender === 'user' || sender === 'admin');
+    div.className = 'flex ' + (isFromOthers ? 'justify-start' : 'justify-end');
     div.innerHTML = `
         <div class="max-w-[70%]">
-            <div class="rounded-lg px-4 py-3 ${sender === 'user' ? 'bg-gray-100' : 'bg-blue-500 text-white'}">
+            <div class="rounded-lg px-4 py-3 ${isFromOthers ? 'bg-gray-100' : 'bg-blue-500 text-white'}">
                 <p class="text-sm">${text}</p>
             </div>
             <p class="text-xs text-gray-500 mt-1">${formattedTime}</p>
