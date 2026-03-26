@@ -101,28 +101,28 @@ async function checkForChats() {
         const response = await fetch('/technician/new_chats');
         const data = await response.json();
         
+        console.log('📊 Polling result:', data);
+        
         if (data.success) {
             const currentCount = data.count;
             
             // Show notification if new chat arrived
             if (currentCount > lastChatCount && currentCount > 0) {
+                console.log('✅ New chat detected! Count:', currentCount);
                 showNotification(currentCount);
                 playNotificationSound();
+                
+                // Reload to show the new chat in the list
+                setTimeout(() => location.reload(), 1000);
             }
             
             lastChatCount = currentCount;
-            
-            // Update UI if we're on the page and there are chats
-            if (currentCount > 0 && document.getElementById('noChatsPanel')) {
-                // Reload to show new chats
-                setTimeout(() => location.reload(), 500);
-            }
             
             // Update connection status
             updateConnectionStatus(true);
         }
     } catch (error) {
-        console.error('Error checking for chats:', error);
+        console.error('❌ Error checking for chats:', error);
         updateConnectionStatus(false);
     }
 }
