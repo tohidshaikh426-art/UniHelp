@@ -57,7 +57,7 @@
                         <div class="rounded-lg px-4 py-3 {% if message.sender == 'user' %}bg-gray-100{% else %}bg-blue-500 text-white{% endif %}">
                             <p class="text-sm">{{ message.message }}</p>
                         </div>
-                        <p class="text-xs text-gray-500 mt-1">{{ message.created_at[:16] if message.created_at else '' }}</p>
+                        <p class="text-xs text-gray-500 mt-1">{{ format_time_12hr(message.created_at) }}</p>
                     </div>
                 </div>
                 {% endfor %}

@@ -128,7 +128,7 @@
                             </span>
                             {% endif %}
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{{ user.created_at[:10] }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{{ format_date(user.created_at) }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm space-x-2">
                             {% if not user.isapproved %}
                             <a href="{{ url_for('approve_user', user_id=user.userid) }}" 

@@ -59,7 +59,7 @@
                         <div class="rounded-lg px-4 py-3 bg-blue-500 text-white">
                             <p class="text-sm">{{ message.message }}</p>
                         </div>
-                        <p class="text-xs text-gray-500 mt-1 text-right">{{ message.created_at[:16] if message.created_at else '' }}</p>
+                        <p class="text-xs text-gray-500 mt-1 text-right">{{ format_time_12hr(message.created_at) }}</p>
                     </div>
                 </div>
                 <!-- Technician/Bot messages on LEFT -->
@@ -69,7 +69,7 @@
                         <div class="rounded-lg px-4 py-3 bg-gray-100">
                             <p class="text-sm text-gray-900">{{ message.message }}</p>
                         </div>
-                        <p class="text-xs text-gray-500 mt-1">{{ message.created_at[:16] if message.created_at else '' }}</p>
+                        <p class="text-xs text-gray-500 mt-1">{{ format_time_12hr(message.created_at) }}</p>
                     </div>
                 </div>
                 {% endif %}
