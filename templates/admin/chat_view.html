@@ -242,8 +242,12 @@ async function endChat() {
     if (!confirm('Are you sure you want to end this chat?')) return;
     
     try {
-        const response = await fetch(`/api/chat/session/${sessionId}/end`, {
-            method: 'POST'
+        const response = await fetch('/api/chat/end_session', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ session_id: sessionId })
         });
         
         const data = await response.json();
@@ -252,7 +256,7 @@ async function endChat() {
             alert('Chat ended successfully');
             window.location.href = '/admin/dashboard';
         } else {
-            alert('Failed to end chat');
+            alert('Failed to end chat: ' + (data.error || 'Unknown error'));
         }
     } catch (error) {
         console.error('Error ending chat:', error);
