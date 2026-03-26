@@ -164,15 +164,12 @@ setInterval(async () => {
                     continue;
                 }
                 
-                // Only add messages from user/technician (not our own admin messages)
-                if (msg.sender !== 'admin') {
-                    newMessages.push(msg);
-                    console.log('✅ Adding new message from', msg.sender, ':', msg.message.substring(0, 30));
-                    // Mark as displayed immediately
-                    displayedMessageIds.add(msgId);
-                } else {
-                    console.log('⏭️ Skipping admin\'s own message:', msgId);
-                }
+                // Add all messages (positioning handled by addMessageWithTime)
+                newMessages.push(msg);
+                console.log('✅ Adding new message from', msg.sender, ':', msg.message.substring(0, 30));
+                // Mark as displayed immediately
+                displayedMessageIds.add(msgId);
+
             }
             
             if (newMessages.length > 0) {
