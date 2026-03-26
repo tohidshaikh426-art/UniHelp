@@ -1263,9 +1263,13 @@ def send_chat_message():
                 'live_chat_active': True
             })
         
-        # Count messages in this session
-        all_messages = db.get_chat_messages_by_session(session_id)
-        message_count = len(all_messages)
+        # Count messages in this session (with error handling)
+        try:
+            all_messages = db.get_chat_messages_by_session(session_id)
+            message_count = len(all_messages)
+        except Exception as e:
+            print(f"⚠️ Failed to fetch message count: {e}")
+            message_count = 1  # Default to minimal count
         
         print(f"📊 Message count: {message_count}, AI Enabled: {AI_ENABLED}")
         

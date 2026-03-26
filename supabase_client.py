@@ -263,12 +263,24 @@ class DatabaseClient:
         return response.data[0] if response.data else None
     
     def get_chat_messages_by_session(self, session_id):
-        """Get chat messages by session ID"""
+        """Get chat messages by session ID with retry logic"""
         if not self.client:
             return []
         
-        response = self.client.table('chat_message').select('*').eq('sessionid', session_id).order('created_at', desc=False).execute()
-        return response.data
+        max_retries = 2
+        for attempt in range(max_retries):
+            try:
+                response = self.client.table('chat_message').select('*')\
+                    .eq('sessionid', session_id)\
+                    .order('created_at', desc=False)\
+                    .execute()
+                return response.data
+            except Exception as e:
+                print(f"⚠️ Attempt {attempt + 1} failed: {e}")
+                if attempt == max_retries - 1:
+                    print(f"❌ All retries failed for session {session_id}")
+                    return []
+        return []
     
     def create_chat_message(self, message_data):
         """Create new chat message"""
