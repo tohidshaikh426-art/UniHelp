@@ -105,8 +105,8 @@ let displayedMessageIds = new Set();
 // Initialize with existing messages
 {% if messages %}
 {% for message in messages %}
-// Use message id from database - try different possible field names
-const msgId{{ loop.index }} = '{{ message.id or message.messageid or ("msg_" ~ loop.index) }}';
+// Use message id from database - ensure we get the actual ID value
+const msgId{{ loop.index }} = {% if message.id %}'{{ message.id }}'{% elif message.messageid %}'{{ message.messageid }}'{% else %}'msg_{{ loop.index }}'{% endif %};
 displayedMessageIds.add(msgId{{ loop.index }});
 console.log('📌 Initial message', {{ loop.index }}, 'ID:', msgId{{ loop.index }});
 {% endfor %}
