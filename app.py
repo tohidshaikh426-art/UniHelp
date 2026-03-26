@@ -1206,16 +1206,17 @@ def start_chat_session():
 @app.route('/api/chat/message', methods=['POST'])
 @login_required
 def send_chat_message():
-    """Handle user message and generate bot response"""
+    """Handle chat message from user, admin, or technician"""
     try:
         data = request.get_json()
         session_id = data.get('session_id')
         user_message = data.get('message', '').strip()
+        sender = data.get('sender', 'user').strip()  # Get sender from request, default to 'user'
         
         # Ensure user_id is an integer
         user_id = int(session.get('user_id', 0))
         
-        print(f"💬 Chat message received - Session: {session_id}, User: {user_id}")
+        print(f"💬 Chat message received - Session: {session_id}, User: {user_id}, Sender: {sender}")
         
         if not user_message or not session_id:
             return jsonify({'success': False, 'error': 'Invalid data'}), 400
@@ -1236,10 +1237,10 @@ def send_chat_message():
             print(f"❌ Session not active - Status: {chat_session['status']}")
             return jsonify({'success': False, 'error': 'Session not active'}), 400
         
-        # Save user message
+        # Save message with correct sender
         db.create_chat_message({
             'sessionid': session_id,
-            'sender': 'user',
+            'sender': sender,  # Use sender from request
             'message': user_message
         })
         
