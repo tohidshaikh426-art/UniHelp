@@ -2606,35 +2606,62 @@ def technician_live_chats():
     """View active live chat sessions"""
     tech_id = session.get('user_id')
     
+    print(f"📊 Loading live chats page for technician {tech_id}...")
+    
     try:
-        # Get active live chats with all related data in ONE query using joins
-        response = db.client.table('live_chat').select('''
-            *,
-            chat_session!inner(userid),
-            user!chat_session_userid_fkey(name, email, role)
-        ''').eq('technicianid', tech_id).eq('status', 'active').execute()
+        # SIMPLIFIED APPROACH: Use separate queries instead of complex JOINs
+        # Step 1: Get active live chats assigned to this technician
+        live_chats_response = db.client.table('live_chat').select('*')\
+            .eq('technicianid', tech_id)\
+            .eq('status', 'active')\
+            .execute()
+        
+        live_chats_data = live_chats_response.data if live_chats_response.data else []
+        print(f"✅ Found {len(live_chats_data)} active live chat(s)")
         
         live_chats = []
-        if response.data:
-            for chat in response.data:
-                # Extract user info from joined data
-                user_info = {}
-                if chat.get('chat_session') and chat['chat_session'].get('userid'):
-                    if chat.get('user'):
-                        user_info = chat['user']
-                
-                live_chats.append({
-                    'livechatid': chat['livechatid'],
-                    'sessionid': chat['sessionid'],
-                    'technicianid': chat['technicianid'],
-                    'status': chat['status'],
-                    'started_at': chat['started_at'],
-                    'ended_at': chat.get('ended_at'),
-                    'user_name': user_info.get('name', 'Unknown') if user_info else 'Unknown',
-                    'user_email': user_info.get('email', '') if user_info else '',
-                    'user_role': user_info.get('role', '') if user_info else ''
-                })
+        for i, chat in enumerate(live_chats_data):
+            print(f"\n💬 Processing Chat #{i+1}: livechatid={chat['livechatid']}")
+            
+            # Step 2: Get chat session info
+            session_response = db.client.table('chat_session').select('*')\
+                .eq('sessionid', chat['sessionid'])\
+                .execute()
+            
+            sessions = session_response.data if session_response.data else []
+            if not sessions:
+                print(f"   ⚠️ No chat_session found")
+                continue
+            
+            chat_session = sessions[0]
+            user_id = chat_session.get('userid')
+            print(f"   Session created by userid={user_id}")
+            
+            # Step 3: Get user info (who created the session - could be admin or student)
+            user_info = {'name': 'Unknown', 'email': '', 'role': 'unknown'}
+            if user_id:
+                user_response = db.client.table('user').select('name, email, role')\
+                    .eq('userid', user_id)\
+                    .execute()
+                users = user_response.data if user_response.data else []
+                if users:
+                    user_info = users[0]
+                    print(f"   User: {user_info['name']} ({user_info['role']})")
+            
+            # Build chat object with correct field names for template
+            live_chats.append({
+                'livechatid': chat['livechatid'],
+                'sessionid': chat['sessionid'],
+                'technicianid': chat['technicianid'],
+                'status': chat.get('status', 'active'),
+                'started_at': chat.get('started_at'),
+                'ended_at': chat.get('ended_at'),
+                'user_name': user_info.get('name', 'Unknown'),
+                'user_email': user_info.get('email', ''),
+                'user_role': user_info.get('role', 'unknown')
+            })
         
+        print(f"\n✅ Prepared {len(live_chats)} chat(s) for display")
         return render_template('technician/live_chats.html', live_chats=live_chats)
     
     except Exception as e:
