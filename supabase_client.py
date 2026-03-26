@@ -101,7 +101,14 @@ class DatabaseClient:
         
         # Get all technicians for lookup
         tech_response = self.client.table('user').select('userid, name, email').eq('role', 'technician').execute()
-        technicians = {tech['userid']: tech for tech in (tech_response.data or [])}
+        technicians_data = tech_response.data if tech_response.data else []
+        
+        # Create a dictionary with both int and string keys for flexibility
+        technicians = {}
+        for tech in technicians_data:
+            tech_id = str(tech['userid'])
+            technicians[tech_id] = tech
+            technicians[tech['userid']] = tech  # Also store with int key
         
         # Manually add technician info to each ticket
         for ticket in tickets:
@@ -113,10 +120,19 @@ class DatabaseClient:
             
             # Add technician info if assigned
             assigned_to = ticket.get('assignedto')
-            if assigned_to and str(assigned_to) in technicians:
-                tech = technicians[str(assigned_to)]
-                ticket['technician_name'] = tech['name']
-                ticket['technician_email'] = tech['email']
+            print(f"DEBUG: Ticket {ticket.get('ticketid')} - assigned_to={assigned_to}, type={type(assigned_to)}")
+            
+            if assigned_to is not None:
+                # Try both string and int lookups
+                tech = technicians.get(assigned_to) or technicians.get(str(assigned_to))
+                if tech:
+                    ticket['technician_name'] = tech['name']
+                    ticket['technician_email'] = tech['email']
+                    print(f"DEBUG: Found technician {tech['name']} for ticket {ticket.get('ticketid')}")
+                else:
+                    print(f"DEBUG: No technician found for assigned_to={assigned_to}")
+            else:
+                print(f"DEBUG: Ticket {ticket.get('ticketid')} not assigned (assignedto=None)")
         
         return tickets
     
