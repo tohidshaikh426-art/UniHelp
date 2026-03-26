@@ -219,8 +219,8 @@ let displayedMessageIds = new Set(); // Track ALL displayed message IDs to preve
 {% if messages %}
 console.log('📦 Initial messages from server:', {{ messages|length }});
 {% for message in messages %}
-displayedMessageIds.add('{{ message.chat_messageid if message.get("chat_messageid") else message.get("id", "") }}');
-console.log('  - Added message ID:', '{{ message.chat_messageid if message.get("chat_messageid") else message.get("id", "") }}', '| Sender:', '{{ message.sender }}');
+displayedMessageIds.add('{{ message.messageid if message.get("messageid") else message.get("id", "") }}');
+console.log('  - Added message ID:', '{{ message.messageid if message.get("messageid") else message.get("id", "") }}', '| Sender:', '{{ message.sender }}');
 {% endfor %}
 {% endif %}
 
@@ -239,7 +239,7 @@ setInterval(async () => {
             // Filter out messages we've already displayed
             const newMessages = [];
             for (const msg of data.messages) {
-                const msgId = msg.chat_messageid || msg.id || '';
+                const msgId = msg.messageid || msg.id || '';
                 
                 // Skip if we've already displayed this message
                 if (displayedMessageIds.has(msgId)) {
