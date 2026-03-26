@@ -1596,9 +1596,12 @@ def admin_send_direct_message():
             return jsonify({'success': False, 'error': 'Invalid request'}), 400
         
         # Verify technician exists and is approved using Supabase
+        print(f"🔍 Looking up technician ID: {technician_id}")
         tech = db.get_user_by_id(technician_id)
+        print(f"👤 Technician found: {tech}")
         
         if not tech or tech['role'] != 'technician' or not tech.get('isapproved'):
+            print(f"❌ Invalid technician: role={tech['role'] if tech else 'None'}, isapproved={tech.get('isapproved') if tech else 'None'}")
             return jsonify({'success': False, 'error': 'Technician not found'}), 404
         
         admin_id = session.get('user_id')
