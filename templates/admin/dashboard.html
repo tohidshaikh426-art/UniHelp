@@ -197,7 +197,7 @@ async function connectToTechnician() {
             const randomTech = data.technicians[Math.floor(Math.random() * data.technicians.length)];
             
             // Send direct message to create live chat
-            const connectResponse = await fetch('/api/admin/send_direct_message', {
+            const connectResponse = await fetch('/admin/send_direct_message', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
