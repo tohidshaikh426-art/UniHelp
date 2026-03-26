@@ -1660,8 +1660,7 @@ def admin_send_direct_message():
         # Create a chat session for this conversation
         chat_session = db.create_chat_session({
             'userid': admin_id,
-            'status': 'active',
-            'source': 'admin_direct_message'
+            'status': 'active'
         })
         
         session_id = chat_session['sessionid']
