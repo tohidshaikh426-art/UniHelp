@@ -4,6 +4,7 @@
 from supabase import create_client, Client
 import os
 from datetime import datetime
+import time
 
 # NOTE: Do NOT use load_dotenv() - Vercel sets environment variables directly
 # load_dotenv() only works for local development with .env files
@@ -247,12 +248,40 @@ class DatabaseClient:
     
     # Chat Session Operations
     def get_chat_session_by_id(self, session_id):
-        """Get chat session by ID"""
+        """Get chat session by ID with retry logic for Vercel serverless"""
         if not self.client:
             return None
         
-        response = self.client.table('chat_session').select('*').eq('sessionid', session_id).execute()
-        return response.data[0] if response.data else None
+        max_retries = 3
+        base_delay = 0.5  # Start with 500ms delay
+        
+        for attempt in range(max_retries):
+            try:
+                print(f"📊 Attempt {attempt + 1}/{max_retries}: Getting chat session {session_id}")
+                response = self.client.table('chat_session').select('*').eq('sessionid', session_id).execute()
+                result = response.data[0] if response.data else None
+                print(f"✅ Successfully retrieved chat session")
+                return result
+            except Exception as e:
+                error_msg = str(e)
+                print(f"⚠️ Attempt {attempt + 1} failed: {error_msg}")
+                
+                # Check if it's a disconnection/transient error
+                if 'disconnected' in error_msg.lower() or 'timeout' in error_msg.lower() or 'RemoteProtocolError' in type(e).__name__:
+                    if attempt < max_retries - 1:
+                        # Exponential backoff: 0.5s, 1s, 2s
+                        delay = base_delay * (2 ** attempt)
+                        print(f"💤 Retrying in {delay}s due to transient error...")
+                        time.sleep(delay)
+                        continue
+                
+                # For non-transient errors or last attempt, log and return None
+                print(f"❌ Failed to get chat session after {max_retries} attempts: {error_msg}")
+                import traceback
+                print(f"Traceback: {traceback.format_exc()}")
+                return None
+        
+        return None
     
     def create_chat_session(self, session_data):
         """Create new chat session"""
