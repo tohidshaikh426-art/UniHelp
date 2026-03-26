@@ -162,6 +162,41 @@ function addMessage(text, sender) {
     scrollToBottom();
 }
 
+// Add message with formatted timestamp (for dynamically loaded messages)
+function addMessageWithTime(text, sender, createdAt) {
+    const container = document.getElementById('messagesContainer');
+    
+    // Format time using the same format as server-side (12-hour format)
+    let formattedTime = '--';
+    if (createdAt) {
+        try {
+            const dt = new Date(createdAt.replace('Z', '+00:00'));
+            const hours = dt.getHours();
+            const minutes = dt.getMinutes();
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            const hours12 = hours % 12 || 12;
+            const minutesStr = minutes.toString().padStart(2, '0');
+            formattedTime = `${hours12}:${minutesStr} ${ampm}`;
+        } catch (e) {
+            formattedTime = createdAt.slice(0, 16);
+        }
+    }
+    
+    const div = document.createElement('div');
+    div.className = 'flex ' + (sender === 'user' ? 'justify-start' : 'justify-end');
+    div.innerHTML = `
+        <div class="max-w-[70%]">
+            <div class="rounded-lg px-4 py-3 ${sender === 'user' ? 'bg-gray-100' : 'bg-blue-500 text-white'}">
+                <p class="text-sm">${text}</p>
+            </div>
+            <p class="text-xs text-gray-500 mt-1">${formattedTime}</p>
+        </div>
+    `;
+    
+    container.appendChild(div);
+    scrollToBottom();
+}
+
 // End chat
 async function endChat() {
     if (!confirm('Are you sure you want to end this chat?')) return;
@@ -175,26 +210,35 @@ async function endChat() {
 
 // Poll for new messages every 2 seconds
 let lastMessageCount = {{ messages|length if messages else 0 }};
+let hasReloaded = false; // Prevent reload after adding messages dynamically
 
 setInterval(async () => {
+    if (hasReloaded) return; // Don't poll if already reloading
+    
     try {
-        const response = await fetch('/technician/new_chats');
+        const response = await fetch(`/api/chat/session/${sessionId}/messages`);
         const data = await response.json();
         
-        if (data.success && data.new_chats) {
-            const chat = data.new_chats.find(c => c.livechatid == {{ live_chat.livechatid }});
-            if (chat) {
-                console.log('📊 Chat polling:', { 
-                    currentCount: lastMessageCount, 
-                    newCount: chat.message_count,
-                    lastMessage: chat.last_message 
+        console.log('📊 Polling - found', data.messages ? data.messages.length : 0, 'user messages');
+        
+        if (data.success && data.messages && data.messages.length > 0) {
+            // Count only user messages in current DOM
+            const currentUserMessages = document.querySelectorAll('#messagesContainer .flex.justify-start');
+            
+            console.log('Current user messages in DOM:', currentUserMessages.length, 'New messages:', data.messages.length);
+            
+            // Only proceed if there are NEW user messages
+            if (data.messages.length > currentUserMessages.length) {
+                console.log('✅ New user message detected! Adding dynamically...');
+                
+                // Add new messages dynamically
+                const newMessages = data.messages.slice(currentUserMessages.length);
+                newMessages.forEach(msg => {
+                    addMessageWithTime(msg.message, 'user', msg.created_at);
                 });
                 
-                // Check if there are new messages
-                if (chat.message_count > lastMessageCount) {
-                    console.log('✅ New message detected! Reloading...');
-                    location.reload(); // Reload to get new messages
-                }
+                // Update count to prevent duplicate additions
+                lastMessageCount = data.messages.length;
             }
         }
     } catch (error) {
