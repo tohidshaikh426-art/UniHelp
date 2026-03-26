@@ -2728,7 +2728,8 @@ def get_session_messages(session_id):
         print(f"❌ Error fetching session messages: {e}")
         import traceback
         print(f"Traceback: {traceback.format_exc()}")
-        return jsonify({'success': False, 'error': f'Failed to fetch messages: {str(e)}'}), 500
+        # Return empty list instead of crashing
+        return jsonify({'success': False, 'error': 'Failed to fetch messages'}), 500
 
 def generate_bot_response(user_message, message_count):
     """
