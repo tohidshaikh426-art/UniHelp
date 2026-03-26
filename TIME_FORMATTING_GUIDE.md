@@ -144,6 +144,10 @@ def utility_processor():
 - ✅ `admin/tickets.html` - Uses `format_date()`
 - ✅ `technician/dashboard.html` - Uses `format_date()`
 - ✅ `technician/work_log.html` - Already had `format_time_12hr()`
+- ✅ `user/live_chat_view.html` - Uses `format_time_12hr()` for message timestamps
+- ✅ `technician/chat_view.html` - Uses `format_time_12hr()` for message timestamps
+- ✅ `admin/monthly_report.html` - Uses `format_date()`
+- ✅ `admin/users.html` - Uses `format_date()`
 
 ---
 
