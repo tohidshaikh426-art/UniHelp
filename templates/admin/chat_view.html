@@ -131,9 +131,8 @@ async function sendMessage(event) {
         if (data.success) {
             console.log('✅ Message sent');
             input.value = '';
-            // Add message immediately without reload
-            const now = new Date().toISOString();
-            addMessageWithTime(message, 'admin', now);
+            // Note: Don't add message here - let polling handle it to avoid duplicates
+            // The message will appear within 3 seconds via polling
         } else {
             alert('Failed to send message: ' + (data.error || 'Unknown error'));
         }
