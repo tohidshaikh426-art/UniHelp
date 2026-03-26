@@ -1681,15 +1681,7 @@ def admin_send_direct_message():
         else:
             print(f"❌ WARNING: live_chat not found in database after creation!")
         
-        # Send initial system message
-        db.create_chat_message({
-            'sessionid': session_id,
-            'sender': 'system',
-            'message': f'📢 Direct message from Admin {admin_name}',
-            'intent': 'system'
-        })
-        
-        # Send admin's message
+        # Send admin's message only (no system message)
         db.create_chat_message({
             'sessionid': session_id,
             'sender': 'admin',
