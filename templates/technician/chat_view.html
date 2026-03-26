@@ -211,11 +211,13 @@ async function endChat() {
 // Poll for new messages every 2 seconds
 let lastMessageCount = {{ messages|length if messages else 0 }};
 let hasReloaded = false; // Prevent reload after adding messages dynamically
-let lastMessageId = null; // Track last message ID to prevent duplicates
+let displayedMessageIds = new Set(); // Track ALL displayed message IDs to prevent duplicates
 
-// Initialize lastMessageId from existing messages
+// Initialize with existing messages from server
 {% if messages %}
-lastMessageId = '{{ messages[-1].chat_messageid if messages[-1].get("chat_messageid") else messages[-1].get("id", "") }}';
+{% for message in messages %}
+displayedMessageIds.add('{{ message.chat_messageid if message.get("chat_messageid") else message.get("id", "") }}');
+{% endfor %}
 {% endif %}
 
 setInterval(async () => {
@@ -232,13 +234,17 @@ setInterval(async () => {
             const newMessages = [];
             for (const msg of data.messages) {
                 const msgId = msg.chat_messageid || msg.id || '';
-                // Skip if it's our own message that we already added dynamically
-                if (msgId && msgId === lastMessageId) {
+                
+                // Skip if we've already displayed this message
+                if (displayedMessageIds.has(msgId)) {
                     continue;
                 }
+                
                 // Only add messages from user/admin (not our own technician messages)
                 if (msg.sender !== 'technician') {
                     newMessages.push(msg);
+                    // Mark as displayed immediately
+                    displayedMessageIds.add(msgId);
                 }
             }
             
@@ -248,12 +254,12 @@ setInterval(async () => {
                 // Add new messages dynamically
                 newMessages.forEach(msg => {
                     addMessageWithTime(msg.message, msg.sender, msg.created_at);
-                    // Update last message ID
-                    lastMessageId = msg.chat_messageid || msg.id || lastMessageId;
                 });
                 
                 // Update count
                 lastMessageCount = data.messages.length;
+            } else {
+                console.log('ℹ️ No new messages - all already displayed');
             }
         }
     } catch (error) {
