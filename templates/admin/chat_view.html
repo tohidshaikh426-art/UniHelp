@@ -105,10 +105,10 @@ let displayedMessageIds = new Set();
 // Initialize with existing messages
 {% if messages %}
 {% for message in messages %}
-// Use message id from database (could be 'id' or 'messageid')
-const msgId{{ loop.index }} = '{{ message.get("id", "") or message.get("messageid", "") or "msg_" ~ loop.index }}';
+// Use message id from database - try different possible field names
+const msgId{{ loop.index }} = '{{ message.id or message.messageid or ("msg_" ~ loop.index) }}';
 displayedMessageIds.add(msgId{{ loop.index }});
-console.log('📌 Initial message', {{ loop.index }}, 'ID:', msgId{{ loop.index }});
+console.log('📌 Initial message', {{ loop.index }}, 'ID:', msgId{{ loop.index }}, 'message object:', message);
 {% endfor %}
 {% endif %}
 
