@@ -87,16 +87,32 @@ class DatabaseClient:
     
     # Ticket Operations
     def get_all_tickets(self):
-        """Get all tickets with user info"""
+        """Get all tickets with user info and technician info"""
         if not self.client:
             return []
         
         response = self.client.table('ticket').select('''
             *,
             user!ticket_userid_fkey(name, email, role),
-            technician:user!ticket_assignedto_fkey(name, email)
+            technician:user!fk_ticket_assignedto(name, email)
         ''').order('createdat', desc=True).execute()
-        return response.data
+        
+        tickets = response.data if response.data else []
+        
+        # Flatten user and technician data for backward compatibility
+        for ticket in tickets:
+            # Add creator info
+            if ticket.get('user'):
+                ticket['user_name'] = ticket['user']['name']
+                ticket['user_email'] = ticket['user']['email']
+                ticket['user_role'] = ticket['user']['role']
+            
+            # Add technician info if assigned
+            if ticket.get('technician'):
+                ticket['technician_name'] = ticket['technician']['name']
+                ticket['technician_email'] = ticket['technician']['email']
+        
+        return tickets
     
     def get_ticket_by_id(self, ticket_id):
         """Get ticket by ID with user info"""
