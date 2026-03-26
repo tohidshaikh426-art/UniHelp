@@ -38,57 +38,118 @@ def write_file(filepath, content):
         print(f"❌ Error writing file: {e}")
         return False
 
-def replace_text(content, old, new, description=""):
-    """Replace text in content - EXACT MATCH ONLY"""
+def replace_text(content, old, new, description="", allow_multiple=False):
+    """Replace text in content - EXACT MATCH ONLY
+    
+    Args:
+        content: File content
+        old: Text to find (must match exactly including whitespace)
+        new: Replacement text
+        description: Optional description for logging
+        allow_multiple: If True, replaces all occurrences. If False, only replaces if exactly one match found.
+    
+    Returns:
+        Modified content or original if no match found
+    """
     count = content.count(old)
     
     if count == 0:
-        print(f"⚠️  Text NOT found: {old[:50]}...")
-        print(f"   Tip: Make sure the text matches EXACTLY (including whitespace and indentation)")
+        print(f"⚠️  Text NOT found")
+        print(f"   Search term: {old[:100]}..." if len(old) > 100 else f"   Search term: {old}")
+        print(f"   Tip: Make sure the text matches EXACTLY (including whitespace, indentation, and line breaks)")
+        print(f"   Tip: Use replace_all() if you expect multiple occurrences")
         return content
-    elif count > 1:
-        print(f"⚠️  Text found {count} times. Using replace_all for multiple replacements.")
-        content = content.replace(old, new)
-        print(f"✅ Replaced {count} occurrences: {description or old[:50]}")
+    elif count > 1 and not allow_multiple:
+        print(f"⚠️  Text found {count} times but allow_multiple=False")
+        print(f"   Found multiple occurrences. To replace all, use replace_all() or set allow_multiple=True")
+        print(f"   Search term: {old[:100]}..." if len(old) > 100 else f"   Search term: {old}")
         return content
     else:
+        # Replace all occurrences (whether count == 1 or count > 1 with allow_multiple=True)
         content = content.replace(old, new)
-        print(f"✅ Replaced: {description or old[:50]}")
+        print(f"✅ Replaced {count} occurrence(s): {description or 'Text replacement'}")
         return content
 
-def insert_after_marker(content, marker, text_to_insert):
-    """Insert text after a specific marker string"""
+def insert_after_marker(content, marker, text_to_insert, strict=True):
+    """Insert text after a specific marker string
+    
+    Args:
+        content: File content
+        marker: Text to search for (must match exactly)
+        text_to_insert: Text to insert after the marker
+        strict: If True, returns error if marker not found. If False, appends to end.
+    
+    Returns:
+        Modified content or original if marker not found (when strict=False)
+    """
     pos = content.find(marker)
     if pos != -1:
         insert_pos = pos + len(marker)
         content = content[:insert_pos] + "\n" + text_to_insert + content[insert_pos:]
-        print(f"✅ Inserted after marker: {marker[:50]}")
+        print(f"✅ Inserted after marker: {marker[:50]}...")
         return content
     else:
-        print(f"⚠️  Marker not found: {marker[:50]}")
+        action = "Returning original content" if strict else "Appending to end of file"
+        print(f"⚠️  Marker not found: {marker[:50]}...")
+        print(f"   {action}")
+        if not strict:
+            content = content + "\n" + text_to_insert
+            print(f"✅ Appended to end of file")
         return content
 
-def insert_before_marker(content, marker, text_to_insert):
-    """Insert text before a specific marker string"""
+def insert_before_marker(content, marker, text_to_insert, strict=True):
+    """Insert text before a specific marker string
+    
+    Args:
+        content: File content
+        marker: Text to search for (must match exactly)
+        text_to_insert: Text to insert before the marker
+        strict: If True, returns error if marker not found. If False, appends to end.
+    
+    Returns:
+        Modified content or original if marker not found (when strict=False)
+    """
     pos = content.find(marker)
     if pos != -1:
         content = content[:pos] + text_to_insert + "\n" + content[pos:]
-        print(f"✅ Inserted before marker: {marker[:50]}")
+        print(f"✅ Inserted before marker: {marker[:50]}...")
         return content
     else:
-        print(f"⚠️  Marker not found: {marker[:50]}")
+        action = "Returning original content" if strict else "Appending to end of file"
+        print(f"⚠️  Marker not found: {marker[:50]}...")
+        print(f"   {action}")
+        if not strict:
+            content = content + "\n" + text_to_insert
+            print(f"✅ Appended to end of file")
         return content
 
-def replace_all(content, old, new, description=""):
-    """Replace ALL occurrences of text in content"""
+def replace_all(content, old, new, description="", min_replacements=1):
+    """Replace ALL occurrences of text in content
+    
+    Args:
+        content: File content
+        old: Text to find (must match exactly)
+        new: Replacement text
+        description: Optional description for logging
+        min_replacements: Minimum expected replacements (default 1). Warns if fewer found.
+    
+    Returns:
+        Modified content or original if no match found
+    """
     count = content.count(old)
     
     if count == 0:
-        print(f"⚠️  Text NOT found: {old[:50]}...")
+        print(f"⚠️  Text NOT found")
+        print(f"   Search term: {old[:100]}..." if len(old) > 100 else f"   Search term: {old}")
+        print(f"   Tip: Verify the text exists in the file")
         return content
     
+    if count < min_replacements:
+        print(f"⚠️  Found {count} occurrence(s), expected at least {min_replacements}")
+        print(f"   Search term: {old[:100]}..." if len(old) > 100 else f"   Search term: {old}")
+    
     content = content.replace(old, new)
-    print(f"✅ Replaced all {count} occurrences: {description or old[:50]}")
+    print(f"✅ Replaced all {count} occurrence(s): {description or 'Text replacement'}")
     return content
 
 def find_and_replace_regex(content, pattern, new, description=""):
