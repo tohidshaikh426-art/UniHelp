@@ -104,7 +104,10 @@ let displayedMessageIds = new Set();
 // Initialize with existing messages
 {% if messages %}
 {% for message in messages %}
-displayedMessageIds.add('{{ message.messageid if message.get("messageid") else message.get("id", "") }}');
+// Use message id from database (could be 'id' or 'messageid')
+const msgId{{ loop.index }} = '{{ message.get("id", "") or message.get("messageid", "") or "msg_" ~ loop.index }}';
+displayedMessageIds.add(msgId{{ loop.index }});
+console.log('📌 Initial message', {{ loop.index }}, 'ID:', msgId{{ loop.index }});
 {% endfor %}
 {% endif %}
 
@@ -145,6 +148,8 @@ async function sendMessage(event) {
 }
 
 // Poll for new messages every 3 seconds (optimized to reduce lag)
+// Wait 3 seconds before first poll to avoid duplicates with server-rendered messages
+setTimeout(() => {
 setInterval(async () => {
     if (hasReloaded) return;
     
@@ -158,7 +163,7 @@ setInterval(async () => {
             // Filter out messages we've already displayed
             const newMessages = [];
             for (const msg of data.messages) {
-                const msgId = msg.messageid || msg.id || '';
+                const msgId = msg.id || msg.messageid || '';
                 
                 // Skip if we've already displayed this message
                 if (displayedMessageIds.has(msgId)) {
@@ -192,6 +197,7 @@ setInterval(async () => {
         console.error('Error polling for messages:', error);
     }
 }, 2000);
+}, 3000);
 
 // Add message with formatted timestamp
 function addMessageWithTime(text, sender, createdAt) {
