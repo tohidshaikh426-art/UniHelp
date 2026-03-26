@@ -99,12 +99,24 @@ class DatabaseClient:
         return response.data
     
     def get_ticket_by_id(self, ticket_id):
-        """Get ticket by ID"""
+        """Get ticket by ID with user info"""
         if not self.client:
             return None
         
-        response = self.client.table('ticket').select('*').eq('ticketid', ticket_id).execute()
-        return response.data[0] if response.data else None
+        response = self.client.table('ticket').select('''
+            *,
+            user!ticket_userid_fkey(name, email, role)
+        ''').eq('ticketid', ticket_id).execute()
+        
+        ticket = response.data[0] if response.data else None
+        
+        # Flatten user data for backward compatibility
+        if ticket and ticket.get('user'):
+            ticket['user_name'] = ticket['user']['name']
+            ticket['user_email'] = ticket['user']['email']
+            ticket['user_role'] = ticket['user']['role']
+        
+        return ticket
     
     def create_ticket(self, ticket_data):
         """Create new ticket"""
