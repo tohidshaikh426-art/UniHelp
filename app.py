@@ -47,12 +47,12 @@ app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg', 'txt', 'doc', 'docx'}
 
-# NEW: Flask-Mail configuration (update with your SMTP details)
-app.config['MAIL_SERVER'] = 'smtp.gmail.com'  # Example: Gmail SMTP
+# Flask-Mail configuration 
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'  
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME', 'unihelp.project@gmail.com')  # Replace with your email
-app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD', 'bfuz ktgu xxdp zuvv')  # Use app password for Gmail
+app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME', 'unihelp.project@gmail.com')  
+app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD', 'bfuz ktgu xxdp zuvv')  
 app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_USERNAME', 'your-email@gmail.com')
 
 # NEW: Initialize Flask-Mail
@@ -142,7 +142,7 @@ def register():
             flash('Invalid role selected', 'error')
             return redirect(url_for('register'))
         
-        # NEW: Send email after registration (before hashing, so we can include plain password in approval email)
+        # Send email after registration
         msg = Message('Registration Pending Approval', recipients=[email])
         msg.body = f"Hello {name},\n\nThank you for registering with UniHelp. Please wait for admin approval before you can log in.\n\nBest regards,\nUniHelp Team"
         mail.send(msg)
