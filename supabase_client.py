@@ -120,27 +120,21 @@ class DatabaseClient:
             
             # Add technician info if assigned
             assigned_to = ticket.get('assignedto')
-            print(f"DEBUG: Ticket {ticket.get('ticketid')} - assigned_to={assigned_to}, type={type(assigned_to)}")
-            
             if assigned_to is not None:
                 # Try both string and int lookups
                 tech = technicians.get(assigned_to) or technicians.get(str(assigned_to))
                 if tech:
                     ticket['technician_name'] = tech['name']
                     ticket['technician_email'] = tech['email']
-                    print(f"DEBUG: Found technician {tech['name']} for ticket {ticket.get('ticketid')}")
-                else:
-                    print(f"DEBUG: No technician found for assigned_to={assigned_to}")
-            else:
-                print(f"DEBUG: Ticket {ticket.get('ticketid')} not assigned (assignedto=None)")
         
         return tickets
     
     def get_ticket_by_id(self, ticket_id):
-        """Get ticket by ID with user info"""
+        """Get ticket by ID with user info and technician info"""
         if not self.client:
             return None
         
+        # Get ticket with creator info
         response = self.client.table('ticket').select('''
             *,
             user!ticket_userid_fkey(name, email, role)
@@ -148,11 +142,28 @@ class DatabaseClient:
         
         ticket = response.data[0] if response.data else None
         
+        if not ticket:
+            return None
+        
         # Flatten user data for backward compatibility
-        if ticket and ticket.get('user'):
+        if ticket.get('user'):
             ticket['user_name'] = ticket['user']['name']
             ticket['user_email'] = ticket['user']['email']
             ticket['user_role'] = ticket['user']['role']
+        
+        # Get technician info if assigned
+        assigned_to = ticket.get('assignedto')
+        if assigned_to is not None:
+            # Fetch technician data
+            tech_response = self.client.table('user').select('userid, name, email')\
+                .eq('userid', assigned_to)\
+                .eq('role', 'technician')\
+                .execute()
+            
+            if tech_response.data and len(tech_response.data) > 0:
+                tech = tech_response.data[0]
+                ticket['technician_name'] = tech['name']
+                ticket['technician_email'] = tech['email']
         
         return ticket
     
