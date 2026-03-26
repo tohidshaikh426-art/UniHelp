@@ -91,15 +91,19 @@ class DatabaseClient:
         if not self.client:
             return []
         
+        # First, get all tickets with creator info
         response = self.client.table('ticket').select('''
             *,
-            user!ticket_userid_fkey(name, email, role),
-            technician:user!fk_ticket_assignedto(name, email)
+            user!ticket_userid_fkey(name, email, role)
         ''').order('createdat', desc=True).execute()
         
         tickets = response.data if response.data else []
         
-        # Flatten user and technician data for backward compatibility
+        # Get all technicians for lookup
+        tech_response = self.client.table('user').select('userid, name, email').eq('role', 'technician').execute()
+        technicians = {tech['userid']: tech for tech in (tech_response.data or [])}
+        
+        # Manually add technician info to each ticket
         for ticket in tickets:
             # Add creator info
             if ticket.get('user'):
@@ -108,9 +112,11 @@ class DatabaseClient:
                 ticket['user_role'] = ticket['user']['role']
             
             # Add technician info if assigned
-            if ticket.get('technician'):
-                ticket['technician_name'] = ticket['technician']['name']
-                ticket['technician_email'] = ticket['technician']['email']
+            assigned_to = ticket.get('assignedto')
+            if assigned_to and str(assigned_to) in technicians:
+                tech = technicians[str(assigned_to)]
+                ticket['technician_name'] = tech['name']
+                ticket['technician_email'] = tech['email']
         
         return tickets
     
