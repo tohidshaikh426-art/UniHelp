@@ -116,10 +116,14 @@ async function sendMessage(event) {
     if (!message) return;
     
     try {
-        const response = await fetch(`/api/chat/session/${sessionId}/message`, {
+        const response = await fetch('/api/chat/message', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message, sender: 'admin' })
+            body: JSON.stringify({ 
+                session_id: sessionId, 
+                message: message,
+                sender: 'admin'  // Specify sender as admin
+            })
         });
         
         const data = await response.json();
@@ -130,7 +134,7 @@ async function sendMessage(event) {
             // Reload to show new message
             location.reload();
         } else {
-            alert('Failed to send message');
+            alert('Failed to send message: ' + (data.error || 'Unknown error'));
         }
     } catch (error) {
         console.error('Error sending message:', error);
