@@ -211,6 +211,12 @@ async function endChat() {
 // Poll for new messages every 2 seconds
 let lastMessageCount = {{ messages|length if messages else 0 }};
 let hasReloaded = false; // Prevent reload after adding messages dynamically
+let lastMessageId = null; // Track last message ID to prevent duplicates
+
+// Initialize lastMessageId from existing messages
+{% if messages %}
+lastMessageId = '{{ messages[-1].chat_messageid if messages[-1].get("chat_messageid") else messages[-1].get("id", "") }}';
+{% endif %}
 
 setInterval(async () => {
     if (hasReloaded) return; // Don't poll if already reloading
@@ -219,25 +225,34 @@ setInterval(async () => {
         const response = await fetch(`/api/chat/session/${sessionId}/messages`);
         const data = await response.json();
         
-        console.log('📊 Polling - found', data.messages ? data.messages.length : 0, 'user messages');
+        console.log('📊 Polling - found', data.messages ? data.messages.length : 0, 'total messages');
         
         if (data.success && data.messages && data.messages.length > 0) {
-            // Count only user messages in current DOM
-            const currentUserMessages = document.querySelectorAll('#messagesContainer .flex.justify-start');
+            // Filter out messages we've already displayed
+            const newMessages = [];
+            for (const msg of data.messages) {
+                const msgId = msg.chat_messageid || msg.id || '';
+                // Skip if it's our own message that we already added dynamically
+                if (msgId && msgId === lastMessageId) {
+                    continue;
+                }
+                // Only add messages from user/admin (not our own technician messages)
+                if (msg.sender !== 'technician') {
+                    newMessages.push(msg);
+                }
+            }
             
-            console.log('Current user messages in DOM:', currentUserMessages.length, 'New messages:', data.messages.length);
-            
-            // Only proceed if there are NEW user messages
-            if (data.messages.length > currentUserMessages.length) {
-                console.log('✅ New user message detected! Adding dynamically...');
+            if (newMessages.length > 0) {
+                console.log('✅ New messages from user/admin:', newMessages.length);
                 
                 // Add new messages dynamically
-                const newMessages = data.messages.slice(currentUserMessages.length);
                 newMessages.forEach(msg => {
-                    addMessageWithTime(msg.message, 'user', msg.created_at);
+                    addMessageWithTime(msg.message, msg.sender, msg.created_at);
+                    // Update last message ID
+                    lastMessageId = msg.chat_messageid || msg.id || lastMessageId;
                 });
                 
-                // Update count to prevent duplicate additions
+                // Update count
                 lastMessageCount = data.messages.length;
             }
         }

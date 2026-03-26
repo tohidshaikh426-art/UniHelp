@@ -2747,14 +2747,15 @@ def get_session_messages(session_id):
             print(f"⚠️ User {current_user_id} not authorized for session {session_id}")
             return jsonify({'success': False, 'error': 'Unauthorized'}), 403
         
-        # Get only technician messages from this session
+        # Get ALL messages from this session (not just technician messages)
         response = db.client.table('chat_message').select('*')\
             .eq('sessionid', session_id)\
-            .eq('sender', 'technician')\
             .order('created_at', desc=False)\
             .execute()
         
         messages = response.data if response.data else []
+        
+        print(f"✅ Retrieved {len(messages)} messages for session {session_id}")
         
         return jsonify({'success': True, 'messages': messages})
     
