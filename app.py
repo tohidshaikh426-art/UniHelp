@@ -3380,14 +3380,33 @@ def get_new_chats():
             }), 500
         
         # OPTIMIZED: Get active live chats with all related data in ONE query using JOINs
+        print(f"🔍 Querying live_chat for technician ID: {tech_id}")
+        
+        # First try simple query without JOINs to verify RLS permissions
+        simple_response = db.client.table('live_chat').select('*')\
+            .eq('technicianid', tech_id)\
+            .eq('status', 'active')\
+            .execute()
+        
+        print(f"📊 Simple query found {len(simple_response.data) if simple_response.data else 0} active chats")
+        if simple_response.data:
+            for i, chat in enumerate(simple_response.data):
+                print(f"💬 Simple Chat #{i+1}: {chat}")
+        
+        # Now try with JOINs
         response = db.client.table('live_chat').select('''
             *,
-            chat_session!inner(userid),
+            chat_session(userid),
             user!chat_session_userid_fkey(name, email, role)
         ''').eq('technicianid', tech_id).eq('status', 'active').execute()
         
-        print(f"📊 Query: SELECT * FROM live_chat WITH JOINS WHERE technicianid={tech_id} AND status='active'")
-        print(f"📊 Found {len(response.data) if response.data else 0} active chats")
+        print(f"📊 JOIN query: SELECT * FROM live_chat WITH JOINS WHERE technicianid={tech_id} AND status='active'")
+        print(f"📊 JOIN query found {len(response.data) if response.data else 0} active chats")
+        
+        if response.data:
+            for i, chat in enumerate(response.data):
+                print(f"💬 Chat #{i+1}: livechatid={chat['livechatid']}, sessionid={chat['sessionid']}")
+                print(f"   Full chat data: {chat}")
         
         if response.data:
             for i, chat in enumerate(response.data):
@@ -3400,19 +3419,23 @@ def get_new_chats():
                 
                 # Extract user info from joined data
                 user_info = {}
-                if chat.get('chat_session') and chat.get('user'):
+                if chat.get('user'):
                     user_info = chat['user']
                 
                 # Get last message (only separate query needed)
-                msg_response = db.client.table('chat_message').select('message')\
-                    .eq('sessionid', chat['sessionid'])\
-                    .order('created_at', desc=True)\
-                    .limit(1)\
-                    .execute()
-                
-                last_message = ''
-                if msg_response.data and len(msg_response.data) > 0:
-                    last_message = msg_response.data[0]['message']
+                try:
+                    msg_response = db.client.table('chat_message').select('message')\
+                        .eq('sessionid', chat['sessionid'])\
+                        .order('created_at', desc=True)\
+                        .limit(1)\
+                        .execute()
+                    
+                    last_message = ''
+                    if msg_response.data and len(msg_response.data) > 0:
+                        last_message = msg_response.data[0]['message']
+                except Exception as e:
+                    print(f"⚠️ Failed to get last message: {e}")
+                    last_message = ''
                 
                 new_chats.append({
                     'livechatid': chat['livechatid'],
@@ -3423,6 +3446,8 @@ def get_new_chats():
                     'last_message': last_message,
                     'message_count': 0
                 })
+        
+        print(f"✅ Prepared {len(new_chats)} chats to return")
         
         result = {
             'success': True,
