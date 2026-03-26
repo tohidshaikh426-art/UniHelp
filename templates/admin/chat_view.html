@@ -54,6 +54,7 @@
             {% if messages %}
                 {% for message in messages %}
                 {% set is_admin_sender = message.sender == 'admin' %}
+                <!-- DEBUG: sender={{ message.sender }} -->
                 <div class="flex {% if is_admin_sender %}justify-end{% else %}justify-start{% endif %}">
                     <div class="max-w-[70%]">
                         <div class="rounded-lg px-4 py-3 {% if is_admin_sender %}bg-blue-500 text-white{% else %}bg-gray-100{% endif %}">
@@ -194,6 +195,8 @@ setInterval(async () => {
 // Add message with formatted timestamp
 function addMessageWithTime(text, sender, createdAt) {
     const container = document.getElementById('messagesContainer');
+    
+    console.log('🔍 Adding message - sender:', sender, 'isAdminSender:', sender === 'admin');
     
     let formattedTime = '--';
     if (createdAt) {
