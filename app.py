@@ -58,6 +58,63 @@ app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_USERNAME', 'your-email@gmail
 # NEW: Initialize Flask-Mail
 mail = Mail(app)
 
+# ==================== GLOBAL TEMPLATE HELPERS ====================
+
+@app.context_processor
+def utility_processor():
+    """Make utility functions available to all templates"""
+    
+    def format_time_12hr(iso_datetime):
+        """Convert ISO datetime to 12-hour format with AM/PM"""
+        if not iso_datetime:
+            return '--'
+        try:
+            # Handle both datetime strings and timestamps
+            if isinstance(iso_datetime, (int, float)):
+                dt = datetime.fromtimestamp(iso_datetime)
+            else:
+                dt = datetime.fromisoformat(str(iso_datetime).replace('Z', '+00:00'))
+            return dt.strftime('%I:%M %p')  # Format: 02:30 PM
+        except:
+            return str(iso_datetime)[:16].replace('T', ' ') if iso_datetime else '--'
+    
+    def format_datetime_full(iso_datetime):
+        """Convert ISO datetime to full date and time format"""
+        if not iso_datetime:
+            return '--'
+        try:
+            dt = datetime.fromisoformat(str(iso_datetime).replace('Z', '+00:00'))
+            return dt.strftime('%b %d, %Y %I:%M %p')  # Format: Mar 25, 2026 02:30 PM
+        except:
+            return str(iso_datetime)[:16].replace('T', ' ') if iso_datetime else '--'
+    
+    def format_date(iso_datetime):
+        """Extract just the date in readable format"""
+        if not iso_datetime:
+            return '--'
+        try:
+            dt = datetime.fromisoformat(str(iso_datetime).replace('Z', '+00:00'))
+            return dt.strftime('%b %d, %Y')  # Format: Mar 25, 2026
+        except:
+            return str(iso_datetime)[:10] if iso_datetime else '--'
+    
+    def format_time_only(iso_datetime):
+        """Extract just the time in 12-hour format"""
+        if not iso_datetime:
+            return '--'
+        try:
+            dt = datetime.fromisoformat(str(iso_datetime).replace('Z', '+00:00'))
+            return dt.strftime('%I:%M:%S %p')  # Format: 02:30:45 PM
+        except:
+            return '--'
+    
+    return {
+        'format_time_12hr': format_time_12hr,
+        'format_datetime_full': format_datetime_full,
+        'format_date': format_date,
+        'format_time_only': format_time_only
+    }
+
 # Database helper functions
 def get_db_connection():
     """Return the Supabase client"""

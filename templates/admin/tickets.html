@@ -82,7 +82,7 @@
                                 </form>
                             {% endif %}
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{{ ticket.createdat[:10] }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{{ format_date(ticket.createdat) }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm">
                             <a href="{{ url_for('view_ticket', ticket_id=ticket.ticketid) }}" 
                                class="text-primary hover:text-blue-700 font-medium">View</a>

@@ -76,7 +76,7 @@ async function downloadAttachment(url, filename) {
                 </div>
                 <div>
                     <p class="text-sm font-medium text-gray-600 mb-1">Created Date</p>
-                    <p class="text-gray-900">{{ ticket.createdat }}</p>
+                    <p class="text-gray-900">{{ format_datetime_full(ticket.createdat) }}</p>
                 </div>
                 <div>
                     <p class="text-sm font-medium text-gray-600 mb-1">Assigned Technician</p>
@@ -171,7 +171,7 @@ async function downloadAttachment(url, filename) {
                                         {{ comment.user_role|title }}
                                     </span>
                                 </div>
-                                <span class="text-sm text-gray-500">{{ comment.createdat }}</span>
+                                <span class="text-sm text-gray-500">{{ format_datetime_full(comment.createdat) }}</span>
                             </div>
                             <p class="text-gray-900 whitespace-pre-wrap">{{ comment.content }}</p>
                         </div>
