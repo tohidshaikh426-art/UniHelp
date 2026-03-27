@@ -110,34 +110,6 @@
         </div>
     </div>
 
-    <!-- Monthly Reports Section -->
-    <div class="bg-white rounded-lg shadow">
-        <div class="px-6 py-4 border-b border-gray-200">
-            <h2 class="text-xl font-bold text-gray-900">📅 Monthly Reports</h2>
-            <p class="mt-1 text-gray-600">Select a month to view detailed analytics</p>
-        </div>
-
-        <div class="p-6">
-            <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {% for year in range(2024, 2027) %}
-                    {% for month in range(1, 13) %}
-                        {% if not (year == 2026 and month > 1) %}
-                        <a href="{{ url_for('monthly_report', year=year, month=month) }}"
-                           class="block p-4 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-blue-300 transition">
-                            <div class="text-center">
-                                <div class="text-lg font-semibold text-gray-900">
-                                    {{ ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][month-1] }}
-                                </div>
-                                <div class="text-sm text-gray-600">{{ year }}</div>
-                            </div>
-                        </a>
-                        {% endif %}
-                    {% endfor %}
-                {% endfor %}
-            </div>
-        </div>
-    </div>
-
     <!-- Report Types -->
     <div class="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <div class="bg-white rounded-lg shadow p-6">
