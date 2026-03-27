@@ -1,0 +1,34 @@
+// Fix for endChat function in templates/technician/live_chats.html
+// Replace lines 170-178 with this improved version
+
+async function endChat(liveChatId) {
+    if (!confirm('Are you sure you want to end this chat?')) return;
+    
+    try {
+        const response = await fetch('/api/chat/end_live_chat/' + liveChatId, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('✅ Chat ended successfully!');
+            location.reload();
+        } else {
+            alert('❌ Error: ' + (result.error || 'Failed to end chat'));
+        }
+    } catch (error) {
+        console.error('Error ending chat:', error);
+        alert('❌ An error occurred while ending the chat. Please try again.');
+    }
+}
+
+// IMPROVEMENTS:
+// 1. Added proper error handling with try-catch
+// 2. Added Content-Type header for JSON
+// 3. Check API response success before reloading
+// 4. Show user-friendly error messages
+// 5. Only reload on success
