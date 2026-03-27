@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 from functools import wraps
 import re
 from difflib import SequenceMatcher
+from email_notifications import send_ticket_created_email, send_ticket_resolved_email
 from file_uploads import file_uploads
 # NEW: Import Flask-Mail for email notifications
 from flask_mail import Mail, Message
@@ -731,6 +732,25 @@ def update_ticket(ticket_id):
     
     db.update_ticket(ticket_id, update_data)
     
+    # Send email notification if ticket is being resolved/closed
+    if status in ['Resolved', 'Closed']:
+        try:
+            # Get ticket owner's info
+            ticket_owner = db.get_user_by_id(ticket.get('userid'))
+            if ticket_owner and ticket_owner.get('email'):
+                send_ticket_resolved_email(
+                    app=app,
+                    mail=mail,
+                    ticket_id=ticket_id,
+                    user_email=ticket_owner['email'],
+                    user_name=ticket_owner.get('name', 'User'),
+                    ticket_title=ticket.get('title', f'Ticket #{ticket_id}'),
+                    resolution_notes=resolution_notes
+                )
+        except Exception as e:
+            print(f"Resolution email send failed: {e}")
+
+    
     # Add comment if provided
     if comment:
         db.create_comment({
@@ -863,6 +883,11 @@ def create_ticket():
         if new_ticket:
             ticket_id = new_ticket['ticketid']
             
+            # Get user info for email
+            user_info = db.get_user_by_id(session.get('user_id'))
+            user_email = user_info.get('email', '') if user_info else ''
+            user_name = user_info.get('name', 'User') if user_info else 'User'
+            
             # Auto-assign ticket to available technician
             all_users = db.get_all_users()
             technicians = [u for u in all_users if u['role'] == 'technician' and u['isapproved']]
@@ -875,6 +900,22 @@ def create_ticket():
                     'assignedto': assigned_technician['userid'],
                     'status': 'In Progress'
                 })
+            
+            # Send email notification
+            if user_email:
+                try:
+                    send_ticket_created_email(
+                        app=app,
+                        mail=mail,
+                        ticket_id=ticket_id,
+                        user_email=user_email,
+                        user_name=user_name,
+                        ticket_title=title,
+                        issue_description=description,
+                        technician_name=assigned_technician['name'] if assigned_technician else None
+                    )
+                except Exception as e:
+                    print(f"Email send failed: {e}")
             
             if assigned_technician:
                 flash(f'Ticket created and assigned to {assigned_technician["name"]}', 'success')
