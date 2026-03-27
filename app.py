@@ -705,7 +705,6 @@ def update_ticket(ticket_id):
     status = request.form.get('status')
     comment = request.form.get('comment')
     resolution_notes = request.form.get('resolution_notes')
-    satisfaction_rating = request.form.get('satisfaction_rating')
 
     # Verify ticket is assigned to this technician
     ticket = db.get_ticket_by_id(ticket_id)
@@ -726,9 +725,6 @@ def update_ticket(ticket_id):
     
     if resolution_notes:
         update_data['resolution_notes'] = resolution_notes
-    
-    if satisfaction_rating:
-        update_data['satisfaction_rating'] = int(satisfaction_rating)
     
     db.update_ticket(ticket_id, update_data)
     
